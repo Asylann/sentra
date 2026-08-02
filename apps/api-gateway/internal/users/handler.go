@@ -1,8 +1,9 @@
 // Package users implements the user profile and installation check endpoints.
 //
 // Endpoints:
-//   GET /api/v1/users/me                → Returns the authenticated user's profile
-//   GET /api/v1/users/me/installation   → Checks if user has installed the GitHub App
+//
+//	GET /api/v1/users/me                → Returns the authenticated user's profile
+//	GET /api/v1/users/me/installation   → Checks if user has installed the GitHub App
 package users
 
 import (
@@ -10,7 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog/log"
+	"log"
 
 	"github.com/usena/sentra/api-gateway/internal/auth"
 )
@@ -56,7 +57,7 @@ func (h *Handler) Me(c *gin.Context) {
 		&profile.InstallationID,
 	)
 	if err != nil {
-		log.Error().Err(err).Int64("user_id", userID).Msg("Failed to fetch user profile")
+		log.Printf("Failed to fetch user profile, user_id: %v, err: %v", userID, err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
@@ -91,7 +92,7 @@ func (h *Handler) CheckInstallation(c *gin.Context) {
 
 	installID, installed, err := h.authSvc.GetUserInstallation(ctx, userID, accessToken)
 	if err != nil {
-		log.Error().Err(err).Int64("user_id", userID).Msg("Failed to check installation")
+		log.Printf("Failed to check installation, user_id: %v, err: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not check installation"})
 		return
 	}

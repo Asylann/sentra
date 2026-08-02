@@ -23,13 +23,13 @@ func NewDashboardHandler(queries *db.Queries) *DashboardHandler {
 
 func (h *DashboardHandler) GetPullRequests(c *gin.Context) {
 	limit := int32(50)
-	
+
 	prs, err := h.Queries.GetRecentPullRequests(c, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch pull requests"})
 		return
 	}
-	
+
 	if prs == nil {
 		prs = []db.GetRecentPullRequestsRow{}
 	}
@@ -45,7 +45,7 @@ func (h *DashboardHandler) GetPullRequests(c *gin.Context) {
 		}
 		prs = filtered
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"data": prs,
 	})
@@ -56,7 +56,7 @@ func (h *DashboardHandler) GetMetrics(c *gin.Context) {
 	if err != nil {
 		metrics = db.GetOrganizationMetricsRow{}
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"data": metrics,
 	})
@@ -68,7 +68,7 @@ func (h *DashboardHandler) GetRepositories(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch repositories"})
 		return
 	}
-	
+
 	if repos == nil {
 		repos = []db.GetRepositoriesRow{}
 	}
@@ -84,7 +84,7 @@ func (h *DashboardHandler) GetRepositories(c *gin.Context) {
 		}
 		repos = filtered
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"data": repos,
 	})

@@ -7,4 +7,3 @@ package webhook
 // This atomically locks rows for the current worker instance while other
 // instances skip locked rows — enabling safe horizontal scaling without
 // distributed locks or race conditions. Research1 §2.3, Research2 §3.2.
-

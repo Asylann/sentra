@@ -26,13 +26,13 @@ func NewRedisClient(addr, password string) *RedisClient {
 // Returns true if the event is a duplicate (i.e. SETNX failed).
 func (r *RedisClient) CheckAndSet(ctx context.Context, deliveryID string) (bool, error) {
 	key := "webhook:delivery:" + deliveryID
-	
+
 	// SETNX with 24-hour TTL
 	set, err := r.client.SetNX(ctx, key, "1", 24*time.Hour).Result()
 	if err != nil {
 		return false, err
 	}
-	
+
 	// If set is false, the key already existed, meaning it's a duplicate.
 	return !set, nil
 }

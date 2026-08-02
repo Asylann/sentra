@@ -31,7 +31,7 @@ const (
 func AuthRequired(svc *Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var tokenStr string
-		
+
 		// 1. Try to get token from Authorization header: "Bearer <token>"
 		authHeader := c.GetHeader("Authorization")
 		if authHeader != "" {

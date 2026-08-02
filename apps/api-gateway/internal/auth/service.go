@@ -22,7 +22,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog/log"
+	"log"
 )
 
 // GitHubUser is the relevant subset of the GitHub /user API response.
@@ -59,13 +59,13 @@ func NewService(db *pgxpool.Pool) *Service {
 	jwtSecret := os.Getenv("JWT_SECRET")
 
 	if clientID == "" {
-		log.Fatal().Msg("GITHUB_CLIENT_ID is required for OAuth")
+		log.Fatal("GITHUB_CLIENT_ID is required for OAuth")
 	}
 	if clientSecret == "" {
-		log.Fatal().Msg("GITHUB_CLIENT_SECRET is required for OAuth")
+		log.Fatal("GITHUB_CLIENT_SECRET is required for OAuth")
 	}
 	if jwtSecret == "" {
-		log.Fatal().Msg("JWT_SECRET is required for session signing")
+		log.Fatal("JWT_SECRET is required for session signing")
 	}
 
 	return &Service{
@@ -243,7 +243,7 @@ func (s *Service) GetUserInstallation(ctx context.Context, userID int64, accessT
 		installID, userID,
 	)
 	if err != nil {
-		log.Warn().Err(err).Msg("Failed to persist installation_id to DB")
+		log.Printf("Failed to persist installation_id to DB: %v", err)
 	}
 
 	return installID, true, nil

@@ -5,4 +5,3 @@ package health
 // GET /readyz   → readiness (DB pool, Redis, Kafka are connected)
 //                 Returns 503 if any dependency is unreachable.
 // Used by Kubernetes probes and Docker healthcheck.
-

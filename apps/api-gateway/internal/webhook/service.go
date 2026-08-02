@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog/log"
+	"log"
 
 	"github.com/usena/sentra/api-gateway/internal/db"
 )
@@ -37,7 +37,7 @@ func (s *Service) ProcessWebhook(ctx context.Context, deliveryID, eventType, act
 	// Convert strings/integers to pgtype structs for pgx/v5 compatibility
 	delUUID, _ := uuid.Parse(deliveryID)
 	pgUUID := pgtype.UUID{Bytes: delUUID, Valid: true}
-	
+
 	actionType := pgtype.Text{String: action, Valid: action != ""}
 	senderType := pgtype.Text{String: senderLogin, Valid: senderLogin != ""}
 	orgType := pgtype.Int8{Int64: organizationID, Valid: organizationID > 0}
@@ -71,7 +71,7 @@ func (s *Service) ProcessWebhook(ctx context.Context, deliveryID, eventType, act
 		if orgLogin == "" {
 			orgLogin = "unknown"
 		}
-		
+
 		internalOrgID, err := qtx.UpsertOrganization(ctx, db.UpsertOrganizationParams{
 			GithubID:       organizationID,
 			Login:          orgLogin,
@@ -79,7 +79,7 @@ func (s *Service) ProcessWebhook(ctx context.Context, deliveryID, eventType, act
 			InstallationID: installationID,
 		})
 		if err != nil {
-			log.Warn().Err(err).Msg("Failed to upsert organization (continuing anyway)")
+			log.Printf("Failed to upsert organization (continuing anyway): %v", err)
 		} else {
 			orgType.Int64 = internalOrgID
 		}
@@ -90,7 +90,7 @@ func (s *Service) ProcessWebhook(ctx context.Context, deliveryID, eventType, act
 		if repoFullName == "" {
 			repoFullName = "unknown/unknown"
 		}
-		
+
 		// If org isn't present, owner is a User
 		var orgIDForRepo int64 = orgType.Int64
 		if !orgType.Valid && extraData.Repository.Owner.Type == "User" {
@@ -116,7 +116,7 @@ func (s *Service) ProcessWebhook(ctx context.Context, deliveryID, eventType, act
 				IsPrivate:      extraData.Repository.Private,
 			})
 			if err != nil {
-				log.Warn().Err(err).Msg("Failed to upsert repository (continuing anyway)")
+				log.Printf("Failed to upsert repository (continuing anyway): %v", err)
 			} else {
 				repoType.Int64 = internalRepoID
 			}
@@ -173,6 +173,6 @@ func (s *Service) ProcessWebhook(ctx context.Context, deliveryID, eventType, act
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	log.Info().Str("delivery_id", deliveryID).Msg("Webhook processed and outbox event queued via ACID transaction")
+	log.Printf("Webhook processed and outbox event queued via ACID transaction, delivery_id: %v", deliveryID)
 	return nil
 }

@@ -1,8 +1,9 @@
 // Package auth — HTTP handler for GitHub OAuth login and callback endpoints.
 //
 // Endpoints:
-//   GET /api/v1/auth/github/login    → redirects to GitHub OAuth consent page
-//   GET /api/v1/auth/github/callback → exchanges code, issues JWT, redirects to frontend
+//
+//	GET /api/v1/auth/github/login    → redirects to GitHub OAuth consent page
+//	GET /api/v1/auth/github/callback → exchanges code, issues JWT, redirects to frontend
 package auth
 
 import (
@@ -13,7 +14,7 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
+	"log"
 )
 
 // Handler holds the HTTP handlers for authentication routes.
@@ -61,7 +62,7 @@ func (h *Handler) Login(c *gin.Context) {
 		h.svc.GetClientID(), state,
 	)
 
-	log.Info().Str("state", state[:8]+"...").Msg("Redirecting to GitHub OAuth")
+	log.Printf("Redirecting to GitHub OAuth, state: %v", state[:8]+"...")
 	c.Redirect(http.StatusTemporaryRedirect, authURL)
 }
 
@@ -81,13 +82,13 @@ func (h *Handler) Callback(c *gin.Context) {
 	// 1. Validate CSRF state
 	cookieState, err := c.Cookie("oauth_state")
 	if err != nil || cookieState == "" {
-		log.Warn().Msg("OAuth callback: missing state cookie")
+		log.Println("OAuth callback: missing state cookie")
 		c.Redirect(http.StatusTemporaryRedirect, h.frontendURL+"/login?error=missing_state")
 		return
 	}
 	queryState := c.Query("state")
 	if cookieState != queryState {
-		log.Warn().Str("cookie", cookieState[:8]).Str("query", queryState[:8]).Msg("OAuth state mismatch — possible CSRF")
+		log.Printf("OAuth state mismatch — possible CSRF, cookie: %v, query: %v", cookieState[:8], queryState[:8])
 		c.Redirect(http.StatusTemporaryRedirect, h.frontendURL+"/login?error=state_mismatch")
 		return
 	}
@@ -96,7 +97,7 @@ func (h *Handler) Callback(c *gin.Context) {
 
 	// Handle user denying permission
 	if errParam := c.Query("error"); errParam != "" {
-		log.Info().Str("error", errParam).Msg("GitHub OAuth denied by user")
+		log.Printf("GitHub OAuth denied by user, error: %v", errParam)
 		c.Redirect(http.StatusTemporaryRedirect, h.frontendURL+"/login?error="+errParam)
 		return
 	}
@@ -110,7 +111,7 @@ func (h *Handler) Callback(c *gin.Context) {
 	// 2. Exchange code for access token
 	accessToken, err := h.svc.ExchangeCodeForToken(ctx, code)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to exchange OAuth code")
+		log.Printf("Failed to exchange OAuth code: %v", err)
 		c.Redirect(http.StatusTemporaryRedirect, h.frontendURL+"/login?error=token_exchange_failed")
 		return
 	}
@@ -118,7 +119,7 @@ func (h *Handler) Callback(c *gin.Context) {
 	// 3. Fetch GitHub user profile
 	ghUser, err := h.svc.FetchGitHubUser(ctx, accessToken)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to fetch GitHub user")
+		log.Printf("Failed to fetch GitHub user: %v", err)
 		c.Redirect(http.StatusTemporaryRedirect, h.frontendURL+"/login?error=user_fetch_failed")
 		return
 	}
@@ -126,20 +127,16 @@ func (h *Handler) Callback(c *gin.Context) {
 	// 4. Upsert user in our database
 	userID, err := h.svc.UpsertUser(ctx, ghUser, accessToken)
 	if err != nil {
-		log.Error().Err(err).Str("login", ghUser.Login).Msg("Failed to upsert user")
+		log.Printf("Failed to upsert user, login: %v, err: %v", ghUser.Login, err)
 		c.Redirect(http.StatusTemporaryRedirect, h.frontendURL+"/login?error=db_error")
 		return
 	}
 
-	log.Info().
-		Int64("user_id", userID).
-		Str("login", ghUser.Login).
-		Msg("User authenticated via GitHub OAuth")
-
+	log.Printf("User authenticated via GitHub OAuth, user_id: %v, login: %v", userID, ghUser.Login)
 	// 5. Generate a signed JWT for the frontend session
 	jwtToken, err := h.svc.GenerateJWT(userID, ghUser.ID, ghUser.Login)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to generate JWT")
+		log.Printf("Failed to generate JWT: %v", err)
 		c.Redirect(http.StatusTemporaryRedirect, h.frontendURL+"/login?error=jwt_error")
 		return
 	}

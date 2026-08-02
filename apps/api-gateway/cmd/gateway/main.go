@@ -12,33 +12,30 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 
+	"log"
+
+	"github.com/redis/go-redis/v9"
 	"github.com/usena/sentra/api-gateway/internal/auth"
+	"github.com/usena/sentra/api-gateway/internal/dashboard"
 	"github.com/usena/sentra/api-gateway/internal/db"
 	"github.com/usena/sentra/api-gateway/internal/dedup"
 	"github.com/usena/sentra/api-gateway/internal/kafka"
 	"github.com/usena/sentra/api-gateway/internal/users"
 	"github.com/usena/sentra/api-gateway/internal/webhook"
 	"github.com/usena/sentra/api-gateway/internal/ws"
-	"github.com/usena/sentra/api-gateway/internal/dashboard"
-	"github.com/redis/go-redis/v9"
 )
 
 func main() {
 	// Configure structured logging
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
-
-	log.Info().Msg("Starting Sentra API Gateway")
+	log.Println("Starting Sentra API Gateway")
 
 	// ---------------------------------------------------------------------------
 	// Load configuration (fail-fast on missing required vars)
 	// ---------------------------------------------------------------------------
 	webhookSecret := os.Getenv("GITHUB_WEBHOOK_SECRET")
 	if webhookSecret == "" {
-		log.Fatal().Msg("GITHUB_WEBHOOK_SECRET is required")
+		log.Fatal("GITHUB_WEBHOOK_SECRET is required")
 	}
 
 	redisAddr := os.Getenv("REDIS_ADDR")
@@ -71,14 +68,14 @@ func main() {
 	// 1. PostgreSQL connection pool
 	dbPool, err := pgxpool.New(ctx, dbUrl)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Unable to create connection pool")
+		log.Printf("Unable to create connection pool: %v", err)
 	}
 	defer dbPool.Close()
 
 	// 2. Kafka producer
 	kafkaProducer, err := kafka.NewProducer(kafkaBrokers)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to start Kafka Producer")
+		log.Printf("Failed to start Kafka Producer: %v", err)
 	}
 	defer kafkaProducer.Close()
 
@@ -134,12 +131,7 @@ func main() {
 	router.Use(func(c *gin.Context) {
 		start := time.Now()
 		c.Next()
-		log.Info().
-			Int("status", c.Writer.Status()).
-			Str("method", c.Request.Method).
-			Str("path", c.Request.URL.Path).
-			Dur("latency", time.Since(start)).
-			Msg("HTTP request")
+		log.Printf("HTTP request, status: %d, method: %s, path: %s, latency: %v", c.Writer.Status(), c.Request.Method, c.Request.URL.Path, time.Since(start))
 	})
 
 	// ---------------------------------------------------------------------------
@@ -170,7 +162,7 @@ func main() {
 			protected.GET("/users/me", usersHandler.Me)
 			protected.GET("/users/me/installation", usersHandler.CheckInstallation)
 			protected.GET("/ws", wsHandler.ServeWS)
-			
+
 			// Dashboard routes
 			protected.GET("/prs", dashboardHandler.GetPullRequests)
 			protected.GET("/prs/:id", dashboardHandler.GetPullRequest)
@@ -193,9 +185,9 @@ func main() {
 	}
 
 	go func() {
-		log.Info().Str("port", port).Msg("API Gateway listening")
+		log.Printf("API Gateway listening, port: %v", port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal().Err(err).Msg("Server failed to start")
+			log.Printf("Server failed to start: %v", err)
 		}
 	}()
 
@@ -204,15 +196,15 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Info().Msg("Shutting down server...")
+	log.Println("Shutting down server...")
 	workerCancel()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Fatal().Err(err).Msg("Server forced to shutdown")
+		log.Printf("Server forced to shutdown: %v", err)
 	}
 
-	log.Info().Msg("Server exited properly")
+	log.Println("Server exited properly")
 }

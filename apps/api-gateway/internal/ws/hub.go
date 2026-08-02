@@ -8,7 +8,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
-	"github.com/rs/zerolog/log"
+	"log"
 )
 
 // Hub manages active WebSocket connections and broadcasts messages from Redis.
@@ -38,7 +38,7 @@ func (h *Hub) AddConnection(githubID int64, conn *websocket.Conn) {
 	}
 
 	h.connections[githubID] = conn
-	log.Info().Int64("github_id", githubID).Msg("WebSocket connection added")
+	log.Printf("WebSocket connection added, github_id: %v", githubID)
 }
 
 // RemoveConnection unregisters a WebSocket connection.
@@ -48,7 +48,7 @@ func (h *Hub) RemoveConnection(githubID int64) {
 
 	if _, exists := h.connections[githubID]; exists {
 		delete(h.connections, githubID)
-		log.Info().Int64("github_id", githubID).Msg("WebSocket connection removed")
+		log.Printf("WebSocket connection removed, github_id: %v", githubID)
 	}
 }
 
@@ -59,23 +59,23 @@ func (h *Hub) ListenToRedis(ctx context.Context) {
 	defer pubsub.Close()
 
 	ch := pubsub.Channel()
-	log.Info().Msg("WebSocket Hub listening to Redis pattern: user:*:pr_events")
+	log.Println("WebSocket Hub listening to Redis pattern: user:*:pr_events")
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Info().Msg("WebSocket Hub stopping Redis listener")
+			log.Println("WebSocket Hub stopping Redis listener")
 			return
 		case msg, ok := <-ch:
 			if !ok {
 				return
 			}
-			
+
 			// Parse the githubID from the channel name: "user:<github_id>:pr_events"
 			var githubID int64
 			_, err := fmt.Sscanf(msg.Channel, "user:%d:pr_events", &githubID)
 			if err != nil {
-				log.Warn().Str("channel", msg.Channel).Err(err).Msg("Failed to parse githubID from channel")
+				log.Printf("Failed to parse githubID from channel, channel: %v, err: %v", msg.Channel, err)
 				continue
 			}
 
@@ -98,10 +98,10 @@ func (h *Hub) broadcastToUser(githubID int64, payload []byte) {
 	_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	err := conn.WriteMessage(websocket.TextMessage, payload)
 	if err != nil {
-		log.Warn().Int64("github_id", githubID).Err(err).Msg("Failed to write to WebSocket, removing connection")
+		log.Printf("Failed to write to WebSocket, removing connection, github_id: %v, err: %v", githubID, err)
 		h.RemoveConnection(githubID)
 		_ = conn.Close()
 	} else {
-		log.Debug().Int64("github_id", githubID).RawJSON("payload", payload).Msg("Broadcasted message to user")
+		log.Printf("Broadcasted message to user, github_id: %v, payload: %s", githubID, payload)
 	}
 }

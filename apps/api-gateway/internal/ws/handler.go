@@ -6,14 +6,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/rs/zerolog/log"
 	"github.com/usena/sentra/api-gateway/internal/auth"
+	"log"
 )
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	// Allow all origins for simplicity in development; 
+	// Allow all origins for simplicity in development;
 	// in production, validate against frontend URL.
 	CheckOrigin: func(r *http.Request) bool {
 		return true
@@ -48,7 +48,7 @@ func (h *Handler) ServeWS(c *gin.Context) {
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to upgrade WebSocket connection")
+		log.Printf("Failed to upgrade WebSocket connection: %v", err)
 		return
 	}
 
@@ -63,25 +63,25 @@ func (h *Handler) ServeWS(c *gin.Context) {
 			h.hub.RemoveConnection(githubID)
 			conn.Close()
 		}()
-		
+
 		conn.SetReadLimit(512)
 		_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-		conn.SetPongHandler(func(string) error { 
+		conn.SetPongHandler(func(string) error {
 			_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-			return nil 
+			return nil
 		})
 
 		for {
 			_, _, err := conn.ReadMessage()
 			if err != nil {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					log.Warn().Err(err).Int64("github_id", githubID).Msg("WebSocket closed unexpectedly")
+					log.Printf("WebSocket closed unexpectedly, github_id: %v, err: %v", githubID, err)
 				}
 				break // Exit loop on error/disconnect
 			}
 		}
 	}()
-	
+
 	// Start a ticker to ping the client
 	go func() {
 		ticker := time.NewTicker(50 * time.Second)
