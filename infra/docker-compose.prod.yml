@@ -84,7 +84,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
 
     labels:
       sentra.service: "postgres"
@@ -305,7 +305,7 @@ services:
       # ---------------------------------------------------------------------------
       # JVM heap (development  increase for production with heavy throughput)
       # ---------------------------------------------------------------------------
-      KAFKA_HEAP_OPTS: "-Xmx128M -Xms128M"
+      KAFKA_HEAP_OPTS: "-Xmx256M -Xms256M"
 
       # ---------------------------------------------------------------------------
       # Idempotent producer support (enforces acks=all)
@@ -317,7 +317,7 @@ services:
 
     healthcheck:
       # Check that the broker is accepting connections and topic metadata is accessible
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list > /dev/null 2>&1"]
+      test: ["CMD-SHELL", "cub kafka-ready -b localhost:9092 1 20"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -329,7 +329,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
 
     labels:
       sentra.service: "kafka"
@@ -510,6 +510,11 @@ networks:
 
 
   # ===========================================================================
+
+
+
+
+
 
 
 
