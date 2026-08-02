@@ -1,0 +1,51 @@
+[tool.poetry]
+name = "ai-worker"
+version = "0.1.0"
+description = "Sentra AI Worker — FastAPI service for LLM-powered code review"
+authors = ["Sentra Team"]
+packages = [{ include = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.111.0"
+uvicorn = { extras = ["standard"], version = "^0.30.0" }
+pydantic = "^2.7.0"
+pydantic-settings = "^2.3.0"   # Fail-fast config validation (Research1 §4.1)
+boto3 = "^1.34.0"              # AWS Bedrock SDK (Claude 3 via Converse API)
+confluent-kafka = "^2.4.0"     # C-binding Kafka client (low poll overhead)
+sqlalchemy = { extras = ["asyncio"], version = "^2.0.30" }
+asyncpg = "^0.29.0"
+alembic = "^1.13.0"
+redis = "^5.0.4"
+httpx = "^0.27.0"              # Async HTTP client for GitHub API
+tree-sitter = "^0.22.0"        # AST parsing for context isolation
+protobuf = "^5.26.0"           # Protobuf deserialization of Kafka messages
+pgvector = "^0.3.0"            # pgvector Python adapter for RAG embeddings
+PyJWT = {extras = ["crypto"], version = "^2.8.0"} # For signing GitHub App JWTs
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+pytest-asyncio = "^0.23.0"
+ruff = "^0.4.0"
+mypy = "^1.10.0"
+boto3-stubs = { extras = ["bedrock-runtime"], version = "^1.34.0" }
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "S", "B", "A", "C4", "PT"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "N"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
