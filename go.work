@@ -1,0 +1,6 @@
+// Go Workspace — enables cross-module development within the monorepo.
+// Allows api-gateway to reference local packages without publishing to proxy.
+go 1.22
+
+use ./apps/api-gateway
+
