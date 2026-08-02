@@ -22,13 +22,13 @@ jobs:
       matrix:
         include:
           - service: api-gateway
-            context: .
+            context: apps/api-gateway
             dockerfile: apps/api-gateway/Dockerfile
           - service: ai-worker
-            context: .
+            context: apps/ai-worker
             dockerfile: apps/ai-worker/Dockerfile
           - service: web-dashboard
-            context: .
+            context: apps/web-dashboard
             dockerfile: apps/web-dashboard/Dockerfile
 
     steps:
@@ -87,3 +87,4 @@ jobs:
             
             echo "Pruning dangling and old images..."
             docker image prune -f
+
