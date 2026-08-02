@@ -1,0 +1,16 @@
+# Triggered when Protobuf contracts change — runs buf breaking check
+# Research1 §2.1: WIRE_JSON breaking change detection in CI
+name: "CI — Protobuf Contracts"
+on:
+  pull_request:
+    paths:
+      - "packages/contracts/**"
+jobs:
+  buf-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bufbuild/buf-action@v1
+        with:
+          input: packages/contracts
+          breaking_against: "https://github.com/${{ github.repository }}.git#branch=main,subdir=packages/contracts"

@@ -1,0 +1,17 @@
+# Triggered only when Python source code changes (path-filtered CI)
+name: "CI — Python AI Worker"
+on:
+  pull_request:
+    paths:
+      - "apps/ai-worker/**"
+      - "packages/contracts/**"
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: cd apps/ai-worker && pip install poetry && poetry install
+      - run: cd apps/ai-worker && poetry run ruff check src/
+      - run: cd apps/ai-worker && poetry run pytest
