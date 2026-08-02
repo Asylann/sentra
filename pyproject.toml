@@ -1,0 +1,22 @@
+# Root-level Ruff configuration for global Python linting.
+# Research2 §1.3: Ruff replaces Flake8+Black with 100x speed advantage.
+# Applied via lefthook pre-commit on modified .py files.
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [
+    ".git",
+    "node_modules",
+    "__pycache__",
+    "alembic/versions",
+    "packages/contracts/gen",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "S", "B", "A", "C4", "PT"]
+ignore = ["S101", "S603"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
