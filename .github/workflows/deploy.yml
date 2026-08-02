@@ -22,7 +22,7 @@ jobs:
       matrix:
         include:
           - service: api-gateway
-            context: apps/api-gateway
+            context: .
             dockerfile: apps/api-gateway/Dockerfile
           - service: ai-worker
             context: apps/ai-worker
