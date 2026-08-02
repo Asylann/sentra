@@ -6,7 +6,7 @@
 #   - Redis 7                               (deduplication, token cache, locks)
 #   - ZooKeeper 3.8                         (Kafka coordination)
 #   - Apache Kafka 3.7                      (event streaming backbone)
-#   - Kafka UI                              (developer visibility tool)
+#   - Kafdrop                               (lightweight developer visibility tool)
 #
 # ARCHITECTURAL REFERENCES:
 #   - PostgreSQL + pgvector: Research1 §2.2, Research2 §3.1, Research7 (RAG)
@@ -354,51 +354,33 @@ services:
       sentra.phase: "1"
 
   # ===========================================================================
-  # SERVICE: Kafka UI (Developer Tool)
+  # SERVICE: Kafdrop (Developer Tool)
   # ===========================================================================
-  # Provides a web-based UI for:
-  #   - Browsing topics and their message contents
-  #   - Monitoring consumer group lag (critical for debugging Python AI Worker)
-  #   - Viewing partition offsets and distribution
-  #   - Publishing test messages to sentra.pr.queue
-  #   - Inspecting DLQ (Dead Letter Queue) contents
-  #
-  # Access: http://localhost:8080
-  # This service is NOT part of the production deployment — development only.
+  # Lightweight web-based UI for browsing Kafka topics and messages.
+  # Replaces the heavier Kafka-UI.
+  # Available at http://localhost:8080
   # ===========================================================================
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: sentra-kafka-ui
+  kafdrop:
+    image: obsidiandynamics/kafdrop:latest
+    container_name: sentra-kafdrop
     restart: unless-stopped
-
+    ports:
+      - "8080:9000"
+    environment:
+      KAFKA_BROKERCONNECT: "kafka:29092"
+      JVM_OPTS: "-Xms32M -Xmx256M"
     depends_on:
       kafka:
         condition: service_healthy
-
-    environment:
-      KAFKA_CLUSTERS_0_NAME: "sentra-local"
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
-      KAFKA_CLUSTERS_0_ZOOKEEPER: "zookeeper:2181"
-      DYNAMIC_CONFIG_ENABLED: "true"
-      # Auth: disable for local dev (enable for shared dev environments)
-      AUTH_TYPE: "disabled"
-
-    ports:
-      - "8080:8080"
-
     networks:
       - sentra-network
-
     profiles:
       # Optional service: only starts when explicitly requested
       # docker compose --profile tools up -d
-      # OR: docker compose up kafka-ui -d
       - tools
-
     labels:
-      sentra.service: "kafka-ui"
+      sentra.service: "kafdrop"
       sentra.phase: "1"
-      sentra.env: "development-only"
 
   # ===========================================================================
   # SERVICE: pgAdmin (Optional Developer Tool)
