@@ -1,0 +1,17 @@
+# sqlc — generates type-safe, zero-reflection Go from raw SQL queries.
+# Research1 §2.2: Go uses sqlc strictly for high-speed OLTP inserts.
+# Research2 §1.1: pgx+sqlc for maximum insert performance (no ORM overhead).
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "internal/db/queries.sql"
+    schema: "../../packages/db-schema/schema.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/db"
+        emit_json_tags: true
+        emit_prepared_queries: true
+        emit_interface: true
+        emit_exact_table_names: false
+        sql_package: "pgx/v5"
