@@ -1234,3 +1234,9 @@ Use this exact format:
 - Fixed the authenticated Dashboard navbar to use the official logo.
 
 **Next Steps**: Awaiting further user instruction.
+
+# Production Deployment Architecture
+- Uses Central Nginx as a reverse proxy for AIOJ and Sentra
+- All services attach to 'shared-web-network' external bridge.
+- Strict memory limits imposed to fit 1GB VM footprint.
+

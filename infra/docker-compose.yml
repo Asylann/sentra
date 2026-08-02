@@ -27,7 +27,7 @@
 #   Go API Gateway or Python AI Worker.
 #
 # NETWORK:
-#   All services communicate on the 'sentra-network' bridge network.
+#   All services communicate on the 'shared-web-network' bridge network.
 #   Services are reachable by container name as hostname within the network.
 # =============================================================================
 
@@ -82,13 +82,13 @@ services:
       start_period: 30s
 
     networks:
-      - sentra-network
+      - shared-web-network
 
     # Resource limits (development — relax for production)
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 256M
 
     labels:
       sentra.service: "postgres"
@@ -149,12 +149,12 @@ services:
       start_period: 10s
 
     networks:
-      - sentra-network
+      - shared-web-network
 
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 128M
 
     labels:
       sentra.service: "redis"
@@ -188,7 +188,7 @@ services:
       ZOOKEEPER_4LW_COMMANDS_WHITELIST: "ruok"
       KAFKA_OPTS: "-Dzookeeper.4lw.commands.whitelist=*"
       # JVM memory settings (development — reduce for low-memory machines)
-      KAFKA_HEAP_OPTS: "-Xmx256M -Xms128M"
+      KAFKA_HEAP_OPTS: "-Xmx128M -Xms64M"
 
     ports:
       # ZooKeeper client port — not exposed externally by default in production
@@ -207,12 +207,12 @@ services:
       start_period: 20s
 
     networks:
-      - sentra-network
+      - shared-web-network
 
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 128M
 
     labels:
       sentra.service: "zookeeper"
@@ -317,7 +317,7 @@ services:
       # ---------------------------------------------------------------------------
       # JVM heap (development — increase for production with heavy throughput)
       # ---------------------------------------------------------------------------
-      KAFKA_HEAP_OPTS: "-Xmx512M -Xms256M"
+      KAFKA_HEAP_OPTS: "-Xmx128M -Xms128M"
 
       # ---------------------------------------------------------------------------
       # Idempotent producer support (enforces acks=all)
@@ -342,12 +342,12 @@ services:
       start_period: 45s    # Kafka needs ~30-45s to fully initialize on first boot
 
     networks:
-      - sentra-network
+      - shared-web-network
 
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 256M
 
     labels:
       sentra.service: "kafka"
@@ -364,8 +364,6 @@ services:
     image: obsidiandynamics/kafdrop:latest
     container_name: sentra-kafdrop
     restart: unless-stopped
-    ports:
-      - "8080:9000"
     environment:
       KAFKA_BROKERCONNECT: "kafka:29092"
       JVM_OPTS: "-Xms32M -Xmx256M"
@@ -373,7 +371,7 @@ services:
       kafka:
         condition: service_healthy
     networks:
-      - sentra-network
+      - shared-web-network
     profiles:
       # Optional service: only starts when explicitly requested
       # docker compose --profile tools up -d
@@ -411,7 +409,7 @@ services:
       - pgadmin_data:/var/lib/pgadmin
 
     networks:
-      - sentra-network
+      - shared-web-network
 
     profiles:
       # Optional: start with 'docker compose --profile tools up -d'
@@ -448,7 +446,7 @@ services:
     ports:
       - "8000:8000"
     networks:
-      - sentra-network
+      - shared-web-network
 
   # ===========================================================================
   # SERVICE: AI Worker (Python 3.12)
@@ -475,7 +473,7 @@ services:
     ports:
       - "8001:8001"
     networks:
-      - sentra-network
+      - shared-web-network
 
   # ===========================================================================
   # SERVICE: Web Dashboard (React + Vite)
@@ -489,7 +487,7 @@ services:
     ports:
       - "5173:80"
     networks:
-      - sentra-network
+      - shared-web-network
 
 # =============================================================================
 # VOLUMES — Named volumes for data persistence
@@ -531,18 +529,19 @@ volumes:
 # =============================================================================
 # NETWORKS — Isolated bridge network
 # =============================================================================
-# All services communicate on 'sentra-network'.
+# All services communicate on 'shared-web-network'.
 # Services reference each other by container name (e.g., kafka:9092, postgres:5432).
 # The network is isolated from other Docker networks on the host.
 # =============================================================================
 networks:
-  sentra-network:
-    name: sentra-network
-    driver: bridge
+  shared-web-network:
+    external: true
+    name: shared-web-network
     labels:
       sentra.project: "sentra-platform"
       sentra.phase: "1"
 
 
   # ===========================================================================
+
 
