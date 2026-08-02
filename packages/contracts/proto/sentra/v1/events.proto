@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+// Sentra Platform — Versioned Kafka Event Schemas
+// ALL inter-service messages use binary Protobuf serialization.
+// NEVER use raw JSON for Kafka payloads — schema drift causes silent failures.
+// buf breaking --against=WIRE_JSON enforces backward compatibility in CI.
+// Research1 §2.1 / Research2 §1.3.
+package sentra.v1;
+
+option go_package = "github.com/usena/sentra/api-gateway/pkg/proto/sentra/v1;sentrav1";
+
+// PullRequestCreated — Published by Go API Gateway to PR_Queue topic.
+// Consumed by Python AI Worker to trigger analysis pipeline.
+// Partition key: repository_id:pull_request_number (Research3 §"Partition Key")
+message PullRequestCreated {
+  string delivery_id       = 1;  // X-GitHub-Delivery UUID (Redis dedup key)
+  int64  installation_id   = 2;
+  int64  organization_id   = 3;
+  int64  repository_id     = 4;  // Used in partition key
+  int64  pull_number       = 5;  // Used in partition key
+  string title             = 6;
+  string head_sha          = 7;
+  string base_branch       = 8;
+  string author_login      = 9;
+  string received_at       = 10; // ISO 8601 timestamp
+  bytes  raw_payload_json  = 11; // Raw webhook body (for audit/replay)
+}
+
+// PullRequestAnalyzed — Published by AI Worker after analysis completes.
+// Consumed by notification services and DORA aggregation jobs.
+message PullRequestAnalyzed {
+  string delivery_id       = 1;
+  int64  repository_id     = 2;
+  int64  pull_number       = 3;
+  int32  quality_score     = 4;
+  bool   merge_blocked     = 5;
+  int32  findings_critical = 6;
+  int32  findings_high     = 7;
+  int32  findings_medium   = 8;
+  int32  findings_low      = 9;
+  string completed_at      = 10;
+  string check_run_url     = 11;
+}
+

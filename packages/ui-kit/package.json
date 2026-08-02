@@ -1,0 +1,8 @@
+{
+  "name": "@sentra/ui-kit",
+  "version": "0.1.0",
+  "description": "Shared React UI components for Sentra Dashboard",
+  "main": "src/index.ts",
+  "scripts": { "build": "tsc" }
+}
+
