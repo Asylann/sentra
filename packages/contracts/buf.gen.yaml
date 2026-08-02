@@ -1,0 +1,104 @@
+# =============================================================================
+# Sentra Platform — Buf Code Generation Configuration
+# =============================================================================
+# buf.gen.yaml declares ALL code generation targets declaratively.
+# Research1 §2.1: "buf.gen.yaml centrally describes target languages and plugins.
+# When a new event is added, 'buf generate' deterministically creates strongly-typed
+# Go structs and Pydantic stubs for Python — both sides work with identical data."
+#
+# This file replaces fragile shell scripts like:
+#   protoc --go_out=... --python_out=... --plugin=...
+# which are environment-dependent and non-deterministic across machines.
+#
+# COMMAND: buf generate  (run from packages/contracts/)
+#          OR: task proto:generate  (from monorepo root)
+#
+# OUTPUT STRUCTURE:
+#   gen/
+#   ├── go/
+#   │   └── sentra/v1/
+#   │       ├── events.pb.go          # Serialization/deserialization structs
+#   │       └── events_grpc.pb.go     # gRPC service stubs (if using gRPC)
+#   └── python/
+#       └── sentra/v1/
+#           ├── events_pb2.py         # Protobuf message classes
+#           └── events_pb2_grpc.py    # gRPC service stubs (if using gRPC)
+#
+# IMPORTANT: Generated files in gen/ are committed to source control.
+# This ensures CI can run without buf installed and guarantees determinism.
+# =============================================================================
+
+version: v2
+
+# ---------------------------------------------------------------------------
+# Managed Mode — automatic option injection
+# ---------------------------------------------------------------------------
+# Automatically sets go_package and other language-specific options
+# for all .proto files, preventing the need to hardcode them per file.
+# ---------------------------------------------------------------------------
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/usena/sentra/api-gateway/pkg/proto
+
+# ---------------------------------------------------------------------------
+# Plugins — Code Generation Targets
+# ---------------------------------------------------------------------------
+plugins:
+
+  # --------------------------------------------------------------------------
+  # TARGET 1: Go Protobuf structs
+  # Generates: events.pb.go
+  # Used by: Go API Gateway (producer — serializes PullRequestCreated to Kafka)
+  # Plugin: protoc-gen-go (official Google plugin)
+  # --------------------------------------------------------------------------
+  - remote: buf.build/protocolbuffers/go
+    out: gen/go
+    opt:
+      - paths=source_relative  # Preserves directory structure from .proto path
+
+  # --------------------------------------------------------------------------
+  # TARGET 2: Go gRPC service stubs (for future internal gRPC if needed)
+  # Generates: events_grpc.pb.go
+  # Currently generates empty files — will be used in Phase 3+ for
+  # internal service-to-service communication if REST is insufficient.
+  # --------------------------------------------------------------------------
+  - remote: buf.build/grpc/go
+    out: gen/go
+    opt:
+      - paths=source_relative
+      - require_unimplemented_servers=false  # Don't enforce on generated code
+
+  # --------------------------------------------------------------------------
+  # TARGET 3: Python Protobuf message classes
+  # Generates: events_pb2.py
+  # Used by: Python AI Worker (consumer — deserializes Kafka messages)
+  # Plugin: protoc-gen-python (official Google plugin)
+  # Note: Python stubs support both binary Protobuf and JSON (proto3)
+  # --------------------------------------------------------------------------
+  - remote: buf.build/protocolbuffers/python
+    out: gen/python
+    opt:
+      - paths=source_relative
+
+  # --------------------------------------------------------------------------
+  # TARGET 4: Python Pydantic v2 stubs (RECOMMENDED for FastAPI integration)
+  # Generates: events_pb2_pydantic.py
+  # Provides type-safe Pydantic models directly from .proto schemas.
+  # These integrate seamlessly with FastAPI request/response validation.
+  # Research1 §2.1: "buf generate creates Pydantic stubs for Python"
+  # --------------------------------------------------------------------------
+  # Uncomment when protoc-gen-pydantic is available or use betterproto:
+  # - remote: buf.build/community/danielgtaylor-python-betterproto
+  #   out: gen/python
+  #   opt:
+  #     - paths=source_relative
+
+# ---------------------------------------------------------------------------
+# Input Configuration
+# ---------------------------------------------------------------------------
+# Process all .proto files within this module directory.
+# ---------------------------------------------------------------------------
+inputs:
+  - directory: .

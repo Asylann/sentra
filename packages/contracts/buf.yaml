@@ -1,0 +1,66 @@
+# =============================================================================
+# Sentra Platform — Buf Schema Registry Configuration
+# =============================================================================
+# buf.yaml configures the Buf toolchain for this Protobuf module.
+# Research1 §2.1: "buf radically simplifies code generation, replacing fragile
+# shell scripts wrapping the protoc compiler"
+# Research2 §1.3: "buf guarantees deterministic code generation on Go and Python"
+#
+# BREAKING CHANGE POLICY (WIRE_JSON — mandatory for Kafka event schemas):
+#   WIRE_JSON protects BOTH binary Protobuf encoding AND JSON encoding.
+#   This is the minimum required rule for an event-driven architecture using Kafka.
+#   Rationale (Research1 §2.1 Table):
+#     - Renaming a field breaks JSON deserialization in the Python AI Worker.
+#     - Removing a field breaks the Go API Gateway producer schema.
+#     - Changing field type (e.g., int32→string) causes silent data corruption.
+#
+# Rule hierarchy (strictest to least strict):
+#   FILE     > PACKAGE > WIRE_JSON > WIRE
+#   We use WIRE_JSON: strict enough to catch all breaking wire changes,
+#   flexible enough to allow safe package-level refactoring.
+#
+# COMMANDS:
+#   buf build    packages/contracts   # Validate .proto files compile
+#   buf lint     packages/contracts   # Check style and naming rules
+#   buf breaking packages/contracts --against <reference>  # Check compat
+#   buf generate packages/contracts   # Generate Go + Python stubs
+# =============================================================================
+
+version: v2
+
+# Module name — used for the Buf Schema Registry (BSR) if publishing publicly.
+# Format: buf.build/{organization}/{module}
+name: buf.build/sentra/platform
+
+# ---------------------------------------------------------------------------
+# Breaking Change Detection Policy
+# ---------------------------------------------------------------------------
+# WIRE_JSON is the MANDATORY minimum for Kafka-based event-driven architecture.
+# It catches:
+#   - Field removal or renaming (breaks JSON deserialization)
+#   - Field type changes (int32 → string, causes parse panic)
+#   - Message removal (Go producer no longer has a type to serialize)
+#   - Enum value removal (Python worker panics on unknown variant)
+# ---------------------------------------------------------------------------
+breaking:
+  use:
+    - WIRE_JSON  # Protects binary AND JSON encoding — required for Kafka + REST
+
+# ---------------------------------------------------------------------------
+# Linting Rules
+# ---------------------------------------------------------------------------
+# Enforces Protobuf style conventions to keep schemas readable and consistent.
+# ---------------------------------------------------------------------------
+lint:
+  use:
+    - DEFAULT          # All default style rules (naming, field numbers, etc.)
+  except:
+    - PACKAGE_VERSION_SUFFIX  # We version via directory (sentra/v1/) not package suffix
+
+# ---------------------------------------------------------------------------
+# Module Dependencies
+# ---------------------------------------------------------------------------
+# Add Well-Known Types or third-party proto deps here if needed.
+# Example: google/protobuf/timestamp.proto
+# ---------------------------------------------------------------------------
+deps: []

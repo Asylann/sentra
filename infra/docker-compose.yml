@@ -1,0 +1,566 @@
+# =============================================================================
+# Sentra Platform — Local Development Infrastructure
+# =============================================================================
+# docker-compose.yml wires up the complete local environment:
+#   - PostgreSQL 16 with pgvector extension (RAG embeddings)
+#   - Redis 7                               (deduplication, token cache, locks)
+#   - ZooKeeper 3.8                         (Kafka coordination)
+#   - Apache Kafka 3.7                      (event streaming backbone)
+#   - Kafka UI                              (developer visibility tool)
+#
+# ARCHITECTURAL REFERENCES:
+#   - PostgreSQL + pgvector: Research1 §2.2, Research2 §3.1, Research7 (RAG)
+#   - Redis: Research2 §3.3 (dedup, token cache, Redlock)
+#   - Kafka: Research1 §3.3, Research2 §2.1 (event streaming, partition ordering)
+#   - ZooKeeper: required for Kafka 3.x in KRaft-less mode
+#
+# USAGE:
+#   docker compose up -d             # Start all services in background
+#   docker compose down              # Stop (data preserved in volumes)
+#   docker compose down -v           # Stop AND destroy all data
+#   docker compose ps                # Check service health
+#   docker compose logs -f kafka     # Tail Kafka logs
+#   task infra:up                    # Same as 'docker compose up -d'
+#
+# FIRST START NOTE:
+#   Wait ~30 seconds for Kafka to elect partition leaders before running
+#   Go API Gateway or Python AI Worker.
+#
+# NETWORK:
+#   All services communicate on the 'sentra-network' bridge network.
+#   Services are reachable by container name as hostname within the network.
+# =============================================================================
+
+services:
+
+  # ===========================================================================
+  # SERVICE: PostgreSQL 16 with pgvector
+  # ===========================================================================
+  # Primary relational database with pgvector extension for RAG embeddings.
+  # pgvector enables vector similarity search (cosine distance) for:
+  #   - Developer error history retrieval (Research7: RAG pipeline)
+  #   - Organization code policy lookup
+  #   - Similar PR pattern matching
+  #
+  # Research1 §2.2: Python owns ALL migrations via Alembic.
+  # Research2 §3.1: 40+ tables, ACID transactions, JSONB for webhook payloads.
+  # Image: pgvector/pgvector:pg16 includes both PostgreSQL 16 AND pgvector.
+  # ===========================================================================
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: sentra-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: sentra
+      POSTGRES_PASSWORD: sentra_dev_password_change_in_prod
+      POSTGRES_DB: sentra
+
+      # Performance tuning for development (NOT production values)
+      # Production values should be calculated via PGTune based on hardware.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+
+    ports:
+      # Exposed on 5432 — accessible from host for local psql / DBeaver / TablePlus
+      - "5432:5432"
+
+    volumes:
+      # Named volume: data persists across 'docker compose down' (not 'down -v')
+      - postgres_data:/var/lib/postgresql/data
+
+      # Init scripts: executed ONCE on first container creation (in alphabetical order)
+      # Place .sql and .sh files here for schema bootstrapping.
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      # pg_isready verifies PostgreSQL is accepting connections, not just running.
+      # The -U and -d flags ensure the check targets our specific database.
+      test: ["CMD-SHELL", "pg_isready -U sentra -d sentra"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+    networks:
+      - sentra-network
+
+    # Resource limits (development — relax for production)
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+    labels:
+      sentra.service: "postgres"
+      sentra.phase: "1"
+
+  # ===========================================================================
+  # SERVICE: Redis 7
+  # ===========================================================================
+  # In-memory data store serving three critical functions (Research2 §3.3):
+  #
+  # 1. Webhook Deduplication (Research3 §"Deduplication"):
+  #    SET idempotency:github:{delivery_id} 1 NX EX 86400
+  #    Prevents duplicate LLM analysis when GitHub retries webhook delivery.
+  #
+  # 2. GitHub Installation Token Cache:
+  #    GitHub App tokens expire in ~1 hour. Caching in Redis avoids hitting
+  #    GitHub rate limits on token exchange for each webhook.
+  #    TTL = token_expiry_time - 60s (safety margin)
+  #
+  # 3. Distributed Locks (Redlock pattern):
+  #    Prevents multiple worker pods from simultaneously posting comments
+  #    to the same PR, ensuring clean GitHub UI output.
+  #
+  # Configuration:
+  #   maxmemory-policy allkeys-lru: evict least-recently-used keys when full.
+  #   appendonly yes: AOF persistence for crash recovery.
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: sentra-redis
+    restart: unless-stopped
+
+    # Redis configuration via command arguments
+    # Production: use redis.conf file mounted as volume
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+      --save 60 1000
+      --loglevel notice
+      --protected-mode no
+
+    ports:
+      # Exposed on 6379 — accessible from host for redis-cli debugging
+      - "6379:6379"
+
+    volumes:
+      # Persist Redis AOF log and RDB snapshots
+      - redis_data:/data
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - sentra-network
+
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+    labels:
+      sentra.service: "redis"
+      sentra.phase: "1"
+
+  # ===========================================================================
+  # SERVICE: ZooKeeper 3.8
+  # ===========================================================================
+  # ZooKeeper is required by Apache Kafka for distributed coordination.
+  # It manages:
+  #   - Kafka broker registration and discovery
+  #   - Consumer group leader election
+  #   - Topic partition leader election
+  #   - ACL configuration storage
+  #
+  # NOTE: Apache Kafka 3.x supports KRaft mode (ZooKeeper-free) which will
+  # become the default in Kafka 4.0. For production, consider migrating to KRaft.
+  # For development, ZooKeeper mode is simpler and more stable with tooling.
+  # ===========================================================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: sentra-zookeeper
+    restart: unless-stopped
+
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000          # Heartbeat tick in milliseconds
+      ZOOKEEPER_SYNC_LIMIT: 2            # Ticks to sync with leader
+      ZOOKEEPER_INIT_LIMIT: 5            # Ticks for follower init
+      ZOOKEEPER_MAX_CLIENT_CNXNS: 60     # Max concurrent client connections
+      ZOOKEEPER_4LW_COMMANDS_WHITELIST: "ruok"
+      KAFKA_OPTS: "-Dzookeeper.4lw.commands.whitelist=*"
+      # JVM memory settings (development — reduce for low-memory machines)
+      KAFKA_HEAP_OPTS: "-Xmx256M -Xms128M"
+
+    ports:
+      # ZooKeeper client port — not exposed externally by default in production
+      - "2181:2181"
+
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+
+    healthcheck:
+      # echo ruok → ZooKeeper responds with 'imok' if healthy
+      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+    networks:
+      - sentra-network
+
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+    labels:
+      sentra.service: "zookeeper"
+      sentra.phase: "1"
+
+  # ===========================================================================
+  # SERVICE: Apache Kafka 3.7
+  # ===========================================================================
+  # Central event streaming backbone. The "nervous system" of the platform.
+  # Research2 §2.1: Kafka chosen over RabbitMQ for:
+  #   - Append-only log: enables event replay for ML model updates
+  #   - Strict per-partition ordering: prevents race conditions between
+  #     push and pull_request events for the same repository
+  #   - Horizontal scaling: add partitions to increase throughput linearly
+  #
+  # Topics (provisioned automatically via KAFKA_CREATE_TOPICS):
+  #   sentra.pr.queue         - Primary PR analysis queue
+  #   sentra.pr.retry         - Retry queue (exponential backoff)
+  #   sentra.pr.dlq           - Dead Letter Queue (failed messages)
+  #   sentra.pr.analyzed      - Completed analysis events
+  #
+  # Partition key strategy (Research3 §"Partition Key"):
+  #   Key = repository_id:pull_request_number
+  #   Ensures all events for one PR → same partition → strict ordering
+  #
+  # Producer settings (Research3 §"Delivery Guarantees"):
+  #   acks=all (required.acks=-1): all ISR replicas must acknowledge
+  #   enable.idempotence=true: prevents duplicate log entries
+  # ===========================================================================
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: sentra-kafka
+    restart: unless-stopped
+
+    # Kafka MUST start after ZooKeeper is healthy
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+
+    environment:
+      # ---------------------------------------------------------------------------
+      # ZooKeeper connection
+      # ---------------------------------------------------------------------------
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+
+      # ---------------------------------------------------------------------------
+      # Listener configuration
+      # ---------------------------------------------------------------------------
+      # INTERNAL: used for container-to-container communication (Go Gateway → Kafka)
+      # EXTERNAL: used when connecting from the host machine (debugging, kafkacat)
+      KAFKA_LISTENERS: "INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:9094"
+      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://kafka:9092,EXTERNAL://localhost:9094"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
+
+      # ---------------------------------------------------------------------------
+      # Broker configuration
+      # ---------------------------------------------------------------------------
+      KAFKA_BROKER_ID: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1    # Single node = no replication
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      # ---------------------------------------------------------------------------
+      # Default topic settings
+      # ---------------------------------------------------------------------------
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_NUM_PARTITIONS: 6    # Start with 6 — can only increase, never decrease
+
+      # ---------------------------------------------------------------------------
+      # Consumer timeout settings (Research1 §3.3 / Research2 §2.2)
+      # These match the Python AI Worker configuration.
+      # max.poll.interval.ms=600000 (10 min) allows LLM inference to complete.
+      # ---------------------------------------------------------------------------
+      KAFKA_GROUP_MAX_SESSION_TIMEOUT_MS: 600000
+      KAFKA_GROUP_MIN_SESSION_TIMEOUT_MS: 6000
+
+      # ---------------------------------------------------------------------------
+      # Log retention (development: short retention to save disk space)
+      # Production: increase to 7 days (604800000ms) for event replay capability
+      # ---------------------------------------------------------------------------
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_RETENTION_BYTES: -1          # No size limit (time-based only)
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824    # 1GB per log segment
+
+      # ---------------------------------------------------------------------------
+      # Auto-create topics for development (disable in production!)
+      # In production: use Terraform to provision topics with explicit configuration.
+      # ---------------------------------------------------------------------------
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+      # ---------------------------------------------------------------------------
+      # Pre-provision platform topics with correct partition count and retention
+      # Format: topic-name:partitions:replication-factor:config,...
+      # ---------------------------------------------------------------------------
+      KAFKA_CREATE_TOPICS: >
+        sentra.pr.queue:6:1:retention.ms=86400000,
+        sentra.pr.retry:6:1:retention.ms=86400000,
+        sentra.pr.dlq:1:1:retention.ms=604800000,
+        sentra.pr.analyzed:6:1:retention.ms=86400000
+
+      # ---------------------------------------------------------------------------
+      # JVM heap (development — increase for production with heavy throughput)
+      # ---------------------------------------------------------------------------
+      KAFKA_HEAP_OPTS: "-Xmx512M -Xms256M"
+
+      # ---------------------------------------------------------------------------
+      # Idempotent producer support (enforces acks=all)
+      # ---------------------------------------------------------------------------
+      KAFKA_ENABLE_IDEMPOTENCE: "true"
+
+    ports:
+      # Internal port — used by all services within Docker network
+      - "9092:9092"
+      # External port — use this from host machine with kafkacat/kcat or Kafka UI
+      - "9094:9094"
+
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+    healthcheck:
+      # Check that the broker is accepting connections and topic metadata is accessible
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s    # Kafka needs ~30-45s to fully initialize on first boot
+
+    networks:
+      - sentra-network
+
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+    labels:
+      sentra.service: "kafka"
+      sentra.phase: "1"
+
+  # ===========================================================================
+  # SERVICE: Kafka UI (Developer Tool)
+  # ===========================================================================
+  # Provides a web-based UI for:
+  #   - Browsing topics and their message contents
+  #   - Monitoring consumer group lag (critical for debugging Python AI Worker)
+  #   - Viewing partition offsets and distribution
+  #   - Publishing test messages to sentra.pr.queue
+  #   - Inspecting DLQ (Dead Letter Queue) contents
+  #
+  # Access: http://localhost:8080
+  # This service is NOT part of the production deployment — development only.
+  # ===========================================================================
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: sentra-kafka-ui
+    restart: unless-stopped
+
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "sentra-local"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
+      KAFKA_CLUSTERS_0_ZOOKEEPER: "zookeeper:2181"
+      DYNAMIC_CONFIG_ENABLED: "true"
+      # Auth: disable for local dev (enable for shared dev environments)
+      AUTH_TYPE: "disabled"
+
+    ports:
+      - "8080:8080"
+
+    networks:
+      - sentra-network
+
+    profiles:
+      # Optional service: only starts when explicitly requested
+      # docker compose --profile tools up -d
+      # OR: docker compose up kafka-ui -d
+      - tools
+
+    labels:
+      sentra.service: "kafka-ui"
+      sentra.phase: "1"
+      sentra.env: "development-only"
+
+  # ===========================================================================
+  # SERVICE: pgAdmin (Optional Developer Tool)
+  # ===========================================================================
+  # Web-based PostgreSQL administration UI.
+  # Access: http://localhost:5050
+  # Login: admin@sentra.dev / sentra_admin
+  # ===========================================================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: sentra-pgadmin
+    restart: unless-stopped
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "admin@sentra.dev"
+      PGADMIN_DEFAULT_PASSWORD: "sentra_admin"
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+
+    ports:
+      - "5050:80"
+
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+    networks:
+      - sentra-network
+
+    profiles:
+      # Optional: start with 'docker compose --profile tools up -d'
+      - tools
+
+    labels:
+      sentra.service: "pgadmin"
+      sentra.env: "development-only"
+
+
+  # ===========================================================================
+  # SERVICE: API Gateway (Go 1.22)
+  # ===========================================================================
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: apps/api-gateway/Dockerfile
+    container_name: sentra-api-gateway
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ../.env
+    environment:
+      - DATABASE_URL=postgresql://sentra:sentra_dev_password_change_in_prod@postgres:5432/sentra
+      - KAFKA_BROKERS=kafka:9092
+      - REDIS_ADDR=redis:6379
+      - FRONTEND_URL=http://localhost:5173
+    ports:
+      - "8000:8000"
+    networks:
+      - sentra-network
+
+  # ===========================================================================
+  # SERVICE: AI Worker (Python 3.12)
+  # ===========================================================================
+  ai-worker:
+    build:
+      context: ../apps/ai-worker
+      dockerfile: Dockerfile
+    container_name: sentra-ai-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ../.env
+    environment:
+      - POSTGRES_URL=postgresql://sentra:sentra_dev_password_change_in_prod@postgres:5432/sentra
+      - KAFKA_BROKERS=kafka:9092
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "8001:8001"
+    networks:
+      - sentra-network
+
+  # ===========================================================================
+  # SERVICE: Web Dashboard (React + Vite)
+  # ===========================================================================
+  web-dashboard:
+    build:
+      context: ../apps/web-dashboard
+      dockerfile: Dockerfile
+    container_name: sentra-web-dashboard
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    networks:
+      - sentra-network
+
+# =============================================================================
+# VOLUMES — Named volumes for data persistence
+# =============================================================================
+# Named volumes persist across container restarts and 'docker compose down'.
+# They are ONLY destroyed by 'docker compose down -v' or 'task infra:destroy'.
+# =============================================================================
+volumes:
+  postgres_data:
+    name: sentra_postgres_data
+    labels:
+      sentra.service: "postgres"
+
+  redis_data:
+    name: sentra_redis_data
+    labels:
+      sentra.service: "redis"
+
+  zookeeper_data:
+    name: sentra_zookeeper_data
+    labels:
+      sentra.service: "zookeeper"
+
+  zookeeper_logs:
+    name: sentra_zookeeper_logs
+    labels:
+      sentra.service: "zookeeper"
+
+  kafka_data:
+    name: sentra_kafka_data
+    labels:
+      sentra.service: "kafka"
+
+  pgadmin_data:
+    name: sentra_pgadmin_data
+    labels:
+      sentra.service: "pgadmin"
+
+# =============================================================================
+# NETWORKS — Isolated bridge network
+# =============================================================================
+# All services communicate on 'sentra-network'.
+# Services reference each other by container name (e.g., kafka:9092, postgres:5432).
+# The network is isolated from other Docker networks on the host.
+# =============================================================================
+networks:
+  sentra-network:
+    name: sentra-network
+    driver: bridge
+    labels:
+      sentra.project: "sentra-platform"
+      sentra.phase: "1"
+
+
+  # ===========================================================================
+

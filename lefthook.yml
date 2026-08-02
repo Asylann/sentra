@@ -1,0 +1,211 @@
+# =============================================================================
+# Sentra Platform — Lefthook Git Hooks Configuration
+# =============================================================================
+# Replaces husky for cross-language pre-commit hooks in the polyglot monorepo.
+# Research1 §1: "lefthook orchestrates parallel linters applied exclusively to
+# changed files via glob matcher"
+# Research2 §1.3: "Ruff for Python, golangci-lint for Go"
+#
+# INSTALLATION:
+#   npm install -g @evilmartians/lefthook   OR
+#   brew install lefthook                   OR
+#   go install github.com/evilmartians/lefthook@latest
+#
+# INITIALIZE:
+#   lefthook install
+#
+# SKIP (emergency bypass):
+#   LEFTHOOK=0 git commit -m "message"
+#
+# ARCHITECTURE PRINCIPLE (Research1 §4.3):
+#   Path filtering ensures that a change to Python files ONLY triggers Ruff,
+#   and a change to Go files ONLY triggers golangci-lint.
+#   This makes pre-commit hooks fast even in a large polyglot monorepo.
+#
+# PARALLEL EXECUTION:
+#   Both lint jobs run in parallel (parallel: true) reducing hook latency.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Pre-commit hooks: run BEFORE the commit is recorded
+# ---------------------------------------------------------------------------
+pre-commit:
+  # Run all lint jobs in parallel for minimum latency
+  parallel: true
+
+  commands:
+    # -------------------------------------------------------------------------
+    # Go API Gateway: golangci-lint
+    # Triggered ONLY when files under apps/api-gateway/**/*.go change.
+    # This implements the polyglot isolation principle — Python devs never
+    # wait for Go linting and vice versa. Research1 §4.3.
+    # -------------------------------------------------------------------------
+    lint-go:
+      name: "golangci-lint (API Gateway)"
+      glob: "apps/api-gateway/**/*.go"
+      run: |
+        cd apps/api-gateway && golangci-lint run {staged_files}
+      fail_text: |
+        ❌ Go lint failed. Run 'task go:lint' to see full output.
+        Fix with: golangci-lint run --fix ./...
+      tags:
+        - lint
+        - go
+
+    # -------------------------------------------------------------------------
+    # Go: gofmt check (formatting)
+    # Runs only on modified .go files, separate from golangci-lint for speed.
+    # -------------------------------------------------------------------------
+    fmt-go:
+      name: "gofmt check (API Gateway)"
+      glob: "apps/api-gateway/**/*.go"
+      run: |
+        FILES=$(gofmt -l {staged_files})
+        if [ -n "$FILES" ]; then
+          echo "❌ The following Go files are not formatted:"
+          echo "$FILES"
+          echo "Run: gofmt -w <file>   OR   task go:fmt"
+          exit 1
+        fi
+      fail_text: "❌ Go files not formatted. Run 'task go:fmt'."
+      tags:
+        - fmt
+        - go
+
+    # -------------------------------------------------------------------------
+    # Python AI Worker: Ruff linter
+    # Triggered ONLY when files under apps/ai-worker/**/*.py change.
+    # Ruff replaces Flake8+Black with ~100x speed advantage (Research2 §1.3).
+    # -------------------------------------------------------------------------
+    lint-python:
+      name: "Ruff lint (AI Worker)"
+      glob: "apps/ai-worker/**/*.py"
+      run: |
+        cd apps/ai-worker && poetry run ruff check {staged_files}
+      fail_text: |
+        ❌ Python lint failed. Run 'task py:lint' to see full output.
+        Auto-fix with: task py:lint:fix
+      tags:
+        - lint
+        - python
+
+    # -------------------------------------------------------------------------
+    # Python: Ruff formatter check
+    # Ensures consistent formatting without running a full Black pass.
+    # -------------------------------------------------------------------------
+    fmt-python:
+      name: "Ruff format check (AI Worker)"
+      glob: "apps/ai-worker/**/*.py"
+      run: |
+        cd apps/ai-worker && poetry run ruff format --check {staged_files}
+      fail_text: |
+        ❌ Python files not formatted. Run: task py:fmt
+      tags:
+        - fmt
+        - python
+
+    # -------------------------------------------------------------------------
+    # Protobuf schemas: buf lint
+    # Triggered when any .proto file in packages/contracts/ changes.
+    # Validates naming conventions, field numbering, and style rules.
+    # -------------------------------------------------------------------------
+    lint-proto:
+      name: "buf lint (Protobuf schemas)"
+      glob: "packages/contracts/**/*.proto"
+      run: |
+        cd packages/contracts && buf lint
+      fail_text: |
+        ❌ Protobuf lint failed. Run 'task proto:lint' to see details.
+      tags:
+        - lint
+        - proto
+
+    # -------------------------------------------------------------------------
+    # Root Python files (pyproject.toml global config scope)
+    # -------------------------------------------------------------------------
+    lint-python-root:
+      name: "Ruff lint (root Python files)"
+      glob: "*.py"
+      run: |
+        poetry run ruff check {staged_files}
+      tags:
+        - lint
+        - python
+
+# ---------------------------------------------------------------------------
+# Pre-push hooks: heavier checks run before 'git push'
+# These are allowed to be slower — they catch issues before CI.
+# ---------------------------------------------------------------------------
+pre-push:
+  parallel: true
+
+  commands:
+    # -------------------------------------------------------------------------
+    # Go tests: run on push (not pre-commit — too slow for commit loop)
+    # -------------------------------------------------------------------------
+    test-go:
+      name: "Go tests (API Gateway)"
+      glob: "apps/api-gateway/**/*.go"
+      run: |
+        cd apps/api-gateway && go test -race -timeout 60s ./...
+      fail_text: "❌ Go tests failed. Run 'task go:test'."
+      tags:
+        - test
+        - go
+
+    # -------------------------------------------------------------------------
+    # Python tests: run on push
+    # -------------------------------------------------------------------------
+    test-python:
+      name: "Python tests (AI Worker)"
+      glob: "apps/ai-worker/**/*.py"
+      run: |
+        cd apps/ai-worker && poetry run pytest -q --tb=short
+      fail_text: "❌ Python tests failed. Run 'task py:test'."
+      tags:
+        - test
+        - python
+
+    # -------------------------------------------------------------------------
+    # buf breaking: only when proto files change on push
+    # Checks WIRE_JSON backward compatibility against main branch.
+    # Research1 §2.1: WIRE_JSON mandatory for Kafka event schemas.
+    # -------------------------------------------------------------------------
+    proto-breaking:
+      name: "buf breaking (WIRE_JSON compatibility check)"
+      glob: "packages/contracts/**/*.proto"
+      run: |
+        cd packages/contracts && \
+        buf breaking \
+          --against "https://github.com/usena/sentra.git#branch=main,subdir=packages/contracts" \
+          --error-format=text
+      fail_text: |
+        ❌ WIRE_JSON breaking change detected!
+        This means your Protobuf change would cause deserialization failures
+        in the Python AI Worker or Go API Gateway.
+        Check: https://buf.build/docs/breaking/rules/
+      tags:
+        - proto
+        - breaking
+
+# ---------------------------------------------------------------------------
+# Commit message validation (optional but recommended)
+# ---------------------------------------------------------------------------
+commit-msg:
+  commands:
+    # Enforces Conventional Commits format: feat/fix/docs/chore/refactor/test/ci
+    validate-commit-message:
+      name: "Conventional Commits format check"
+      run: |
+        MSG=$(cat {1})
+        PATTERN="^(feat|fix|docs|style|refactor|test|chore|ci|perf|build|revert)(\([a-z0-9-]+\))?: .{3,}"
+        if ! echo "$MSG" | grep -qE "$PATTERN"; then
+          echo "❌ Invalid commit message format."
+          echo ""
+          echo "Expected: <type>(<scope>): <description>"
+          echo "Example:  feat(api-gateway): add HMAC webhook verification"
+          echo ""
+          echo "Types: feat|fix|docs|style|refactor|test|chore|ci|perf|build|revert"
+          exit 1
+        fi
+      fail_text: "❌ Commit message does not follow Conventional Commits format."
