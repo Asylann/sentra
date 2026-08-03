@@ -36,27 +36,6 @@ import { SentraWSProvider } from './context/SentraWSContext';
  *  - Authenticated, no install → /onboarding
  *  - Authenticated + installed → render children (dashboard)
  */
-function RequireAuth({ children }) {
-  const { isAuthenticated, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="relative size-10">
-          <div className="absolute inset-0 rounded-full border-2 border-white/10" />
-          <div className="absolute inset-0 rounded-full border-2 border-t-indigo-400 animate-spin" />
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return children;
-}
-
 function ProtectedRoute({ children }) {
   const { isAuthenticated, hasInstallation, loading } = useAuth();
 
