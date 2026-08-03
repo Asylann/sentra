@@ -252,7 +252,7 @@ services:
       # INTERNAL: used for container-to-container communication (Go Gateway  Kafka)
       # EXTERNAL: used when connecting from the host machine (debugging, kafkacat)
       KAFKA_LISTENERS: "INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:9094"
-      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://sentra-sentra-kafka:9092,EXTERNAL://localhost:9094"
+      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://sentra-kafka:9092,EXTERNAL://localhost:9094"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
       KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
 
@@ -510,6 +510,7 @@ networks:
 
 
   # ===========================================================================
+
 
 
 
