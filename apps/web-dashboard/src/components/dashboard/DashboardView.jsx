@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ShieldAlert, Zap, GitPullRequest, Activity, Server, Cpu, Database, XCircle, ArrowUpRight, Clock, AlertTriangle, Search, FileCode, Code2, Network } from 'lucide-react';
+import { ShieldAlert, Zap, GitPullRequest, Activity, Server, Cpu, Database, XCircle, ArrowUpRight, Clock, AlertTriangle, Search, FileCode, Code2, Network, Bot } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSentraWS } from '../../context/SentraWSContext';
 
