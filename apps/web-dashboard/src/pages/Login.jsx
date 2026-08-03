@@ -16,7 +16,7 @@ export default function Login() {
   }, [isAuthenticated, hasInstallation, loading, navigate]);
 
   const handleGitHubLogin = () => {
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const baseUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000' : '');
     window.location.href = `${baseUrl}/api/v1/auth/github/login`;
   };
 

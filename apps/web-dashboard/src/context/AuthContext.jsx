@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 
 // API base URL — hardcoded to localhost:8000 to bypass Vite proxy issues during dev
 // Override with VITE_API_URL env var if you need to point to a different host
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000' : '');
 
 const AuthContext = createContext(null);
 
