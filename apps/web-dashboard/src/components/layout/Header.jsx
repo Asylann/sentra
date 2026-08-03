@@ -22,7 +22,7 @@ export default function Header() {
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" className="flex items-center">
-          <img src="/logo_with_name.png" alt="Sentra" className="h-7" />
+          <img src="/logo_with_name.png" alt="Sentra" className="h-10" />
         </Link>
 
         {/* Navigation */}

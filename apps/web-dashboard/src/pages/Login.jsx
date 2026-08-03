@@ -37,6 +37,18 @@ export default function Login() {
       {/* Left Column: Animation & Value Prop */}
       <div className="hidden lg:flex flex-1 relative overflow-hidden bg-[#09090b] items-center justify-center border-r border-white/5">
         
+        {/* Ambient Glowing Orbs */}
+        <motion.div 
+          className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/20 rounded-full blur-[100px] pointer-events-none"
+          animate={{ x: [0, 50, 0], y: [0, -50, 0] }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div 
+          className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-rose-500/10 rounded-full blur-[120px] pointer-events-none"
+          animate={{ x: [0, -70, 0], y: [0, 60, 0] }}
+          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+        />
+
         {/* Abstract Vertical Bars Animation Background */}
         <div className="absolute inset-0 flex items-center justify-center gap-1 opacity-20 pointer-events-none">
           {bars.map((height, i) => (
@@ -59,22 +71,27 @@ export default function Login() {
         </div>
 
         {/* Foreground Content */}
-        <div className="relative z-10 text-center max-w-xl px-8">
+        <div className="relative z-10 text-center max-w-2xl px-12">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
           >
-            <h1 className="text-4xl md:text-5xl font-semibold text-white tracking-tight mb-4 leading-[1.1]">
-              You're 2 clicks away from shipping higher-quality code.
+            <h1 className="text-4xl md:text-5xl font-semibold text-white tracking-tight mb-6 leading-[1.15]">
+              Code reviews were hard before.<br/>Now, they feel impossible.
             </h1>
-            <p className="text-lg text-gray-400 font-mono mb-8">
-              Free up development time while increasing productivity.
+            <p className="text-lg text-gray-300 mb-8 leading-relaxed">
+              Your team moves fast with AI. But fast shouldn't mean sloppy.
+              We make sure every line still earns its merge.
             </p>
-            <div className="flex items-center justify-center gap-4">
-              <span className="px-3 py-1 bg-white/5 border border-white/10 rounded text-xs text-gray-300">14 days free trial</span>
-              <span className="px-3 py-1 bg-white/5 border border-white/10 rounded text-xs text-gray-300">No credit card needed</span>
-            </div>
+            <motion.button 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.6 }}
+              className="px-8 py-3 bg-white text-black font-semibold rounded-full hover:bg-gray-200 transition-colors shadow-lg shadow-white/10"
+            >
+              Get Started
+            </motion.button>
           </motion.div>
         </div>
       </div>

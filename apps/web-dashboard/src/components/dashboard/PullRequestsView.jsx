@@ -78,7 +78,16 @@ export default function PullRequestsView() {
 
   // ── Filtering ──
   const filtered = useMemo(() => {
-    let result = prs;
+    // Deduplicate PRs by repository and pull_number, keeping the most recent
+    const unique = new Map();
+    for (const pr of prs) {
+      const key = `${pr.repository_full_name}#${pr.pull_number}`;
+      if (!unique.has(key) || new Date(pr.created_at) > new Date(unique.get(key).created_at)) {
+        unique.set(key, pr);
+      }
+    }
+    let result = Array.from(unique.values());
+
     if (statusFilter !== 'all') {
       result = result.filter(pr => pr.analysis_status === statusFilter);
     }

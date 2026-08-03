@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ShieldAlert, Zap, GitPullRequest, Activity, Server, Cpu, Database, XCircle, ArrowUpRight, Clock, AlertTriangle, Search, FileCode, Code2, Network, Bot } from 'lucide-react';
+import { ShieldAlert, Zap, GitPullRequest, Activity, Server, Cpu, Database, XCircle, ArrowUpRight, Clock, AlertTriangle, Search, FileCode, Code2, Network, Bot, Coins } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSentraWS } from '../../context/SentraWSContext';
 
@@ -33,7 +34,16 @@ export default function DashboardView() {
         }
         if (prsRes.ok) {
           const pData = await prsRes.json();
-          setPrHistory(pData.data || []);
+          const prs = pData.data || [];
+          
+          const unique = new Map();
+          for (const pr of prs) {
+            const key = `${pr.repository_full_name}#${pr.pull_number}`;
+            if (!unique.has(key) || new Date(pr.created_at) > new Date(unique.get(key).created_at)) {
+              unique.set(key, pr);
+            }
+          }
+          setPrHistory(Array.from(unique.values()));
         }
       } catch (err) {
         console.error("Failed to fetch dashboard data", err);
@@ -51,7 +61,7 @@ export default function DashboardView() {
       .slice(0, 3)
       .map(pr => ({
         id: pr.id,
-        title: pr.title || `PR #${pr.github_pr_number}`,
+        title: pr.title || `PR #${pr.pull_number}`,
         author: pr.author_login || 'unknown',
         score: Math.round(pr.quality_score),
         time: new Date(pr.created_at).toLocaleDateString()
@@ -362,7 +372,7 @@ export default function DashboardView() {
               <div className="pt-5 mt-5 border-t border-white/[0.05]">
                 <div className="flex justify-between items-end mb-3">
                   <div className="flex items-center gap-2">
-                    <img src="https://cdn.simpleicons.org/amazonwebservices/FF9900" alt="AWS" className="w-4 h-4" />
+                    <Coins className="w-4 h-4 text-[#FF9900]" />
                     <span className="text-sm font-medium text-gray-300">Token Budget</span>
                   </div>
                   <span className="text-xs font-medium text-gray-400 bg-white/5 px-2 py-1 rounded">{kpiStats.budgetPercent}% Used</span>
@@ -413,9 +423,12 @@ export default function DashboardView() {
                     </div>
                   </div>
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button className="text-xs bg-white/5 hover:bg-white/10 text-white px-3 py-1.5 rounded-lg border border-white/10 transition-colors">
+                    <Link 
+                      to={`/dashboard/prs/${pr.id}`}
+                      className="inline-block text-xs bg-white/5 hover:bg-white/10 text-white px-3 py-1.5 rounded-lg border border-white/10 transition-colors"
+                    >
                       Review
-                    </button>
+                    </Link>
                   </div>
                 </div>
               ))}
