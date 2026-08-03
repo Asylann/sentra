@@ -1,8 +1,21 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { FileCode, ShieldAlert, Code2, ArrowRight } from 'lucide-react';
+import { FileCode, ShieldAlert, Code2, ArrowRight, GitPullRequest, ShieldCheck, Terminal } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.15, delayChildren: 0.2 }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 30 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
+};
 
 export default function LandingPage() {
   const { isAuthenticated } = useAuth();
@@ -13,6 +26,12 @@ export default function LandingPage() {
       {/* Background Texture & Bouncing Logo */}
       <div className="fixed inset-0 z-0 pointer-events-none flex items-center justify-center overflow-hidden" style={{ background: 'radial-gradient(circle at 50% 0%, #111 0%, transparent 60%)' }}>
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:24px_24px]" />
+        
+        {/* Floating Icons */}
+        <motion.div className="absolute top-[15%] left-[15%] text-indigo-500/10" animate={{ y: [0, 20, 0], rotate: [0, 10, -10, 0] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}><Code2 size={48} /></motion.div>
+        <motion.div className="absolute bottom-[20%] left-[10%] text-rose-500/10" animate={{ y: [0, -25, 0], rotate: [0, -15, 15, 0] }} transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}><GitPullRequest size={64} /></motion.div>
+        <motion.div className="absolute top-[25%] right-[15%] text-emerald-500/10" animate={{ y: [0, 30, 0], rotate: [0, 20, -20, 0] }} transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}><ShieldCheck size={56} /></motion.div>
+        <motion.div className="absolute bottom-[25%] right-[20%] text-amber-500/10" animate={{ y: [0, -20, 0], rotate: [0, 10, -10, 0] }} transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}><Terminal size={40} /></motion.div>
         
         {/* Floating Particles */}
         {[...Array(20)].map((_, i) => (
@@ -59,7 +78,7 @@ export default function LandingPage() {
       {/* Header */}
       <header className="relative z-10 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto">
         <div className="flex items-center">
-          <img src="/logo_with_name.png" alt="Sentra" className="h-12" />
+          <img src="/logo_with_name.png" alt="Sentra" className="h-16 md:h-20" />
         </div>
         
         <nav className="hidden md:flex gap-8 text-sm font-medium text-gray-400">
@@ -143,15 +162,23 @@ export default function LandingPage() {
           </div>
 
           <div className="flex-1 mt-12 md:mt-0">
-            <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-white mb-6 leading-[1.1]">
-              Code reviews were hard before. Now, they feel <span className="text-[#8b5cf6]">impossible.</span>
-            </h1>
-            <p className="text-lg text-gray-400 leading-relaxed mb-8 max-w-lg">
-              Your team moves fast with AI. But fast shouldn't mean sloppy. We make sure every line still earns its merge.
-            </p>
-            <Link to="/login" className="inline-flex items-center gap-2 text-white bg-indigo-600 hover:bg-indigo-500 px-6 py-3 rounded-lg font-medium transition-colors border border-indigo-500/50 shadow-lg shadow-indigo-500/20">
-              Get Started <ArrowRight className="w-4 h-4" />
-            </Link>
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="show"
+            >
+              <motion.h1 variants={itemVariants} className="text-5xl md:text-6xl font-bold tracking-tight text-white mb-6 leading-[1.1]">
+                Code reviews were hard before. Now, they feel <span className="text-[#8b5cf6]">impossible.</span>
+              </motion.h1>
+              <motion.p variants={itemVariants} className="text-lg text-gray-400 leading-relaxed mb-8 max-w-lg">
+                Your team moves fast with AI. But fast shouldn't mean sloppy. We make sure every line still earns its merge.
+              </motion.p>
+              <motion.div variants={itemVariants}>
+                <Link to="/login" className="inline-flex items-center gap-2 text-white bg-indigo-600 hover:bg-indigo-500 px-6 py-3 rounded-lg font-medium transition-colors border border-indigo-500/50 shadow-lg shadow-indigo-500/20">
+                  Get Started <ArrowRight className="w-4 h-4" />
+                </Link>
+              </motion.div>
+            </motion.div>
           </div>
         </section>
 
