@@ -1,7 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { Code2, GitPullRequest, ShieldCheck, Terminal } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.15, delayChildren: 0.2 }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 30 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
+};
 
 export default function Login() {
   const { isAuthenticated, hasInstallation, loading } = useAuth();
@@ -49,6 +63,12 @@ export default function Login() {
           transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
         />
 
+        {/* Floating Icons */}
+        <motion.div className="absolute top-[15%] left-[15%] text-indigo-500/20" animate={{ y: [0, 20, 0], rotate: [0, 10, -10, 0] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}><Code2 size={48} /></motion.div>
+        <motion.div className="absolute bottom-[20%] left-[10%] text-rose-500/20" animate={{ y: [0, -25, 0], rotate: [0, -15, 15, 0] }} transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}><GitPullRequest size={64} /></motion.div>
+        <motion.div className="absolute top-[25%] right-[15%] text-emerald-500/20" animate={{ y: [0, 30, 0], rotate: [0, 20, -20, 0] }} transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}><ShieldCheck size={56} /></motion.div>
+        <motion.div className="absolute bottom-[25%] right-[20%] text-amber-500/20" animate={{ y: [0, -20, 0], rotate: [0, 10, -10, 0] }} transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}><Terminal size={40} /></motion.div>
+
         {/* Abstract Vertical Bars Animation Background */}
         <div className="absolute inset-0 flex items-center justify-center gap-1 opacity-20 pointer-events-none">
           {bars.map((height, i) => (
@@ -73,22 +93,20 @@ export default function Login() {
         {/* Foreground Content */}
         <div className="relative z-10 text-center max-w-2xl px-12">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
+            variants={containerVariants}
+            initial="hidden"
+            animate="show"
           >
-            <h1 className="text-4xl md:text-5xl font-semibold text-white tracking-tight mb-6 leading-[1.15]">
+            <motion.h1 variants={itemVariants} className="text-4xl md:text-5xl font-semibold text-white tracking-tight mb-6 leading-[1.15]">
               Code reviews were hard before.<br/>Now, they feel impossible.
-            </h1>
-            <p className="text-lg text-gray-300 mb-8 leading-relaxed">
+            </motion.h1>
+            <motion.p variants={itemVariants} className="text-lg text-gray-300 mb-8 leading-relaxed">
               Your team moves fast with AI. But fast shouldn't mean sloppy.
               We make sure every line still earns its merge.
-            </p>
+            </motion.p>
             <motion.button 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.6 }}
-              className="px-8 py-3 bg-white text-black font-semibold rounded-full hover:bg-gray-200 transition-colors shadow-lg shadow-white/10"
+              variants={itemVariants}
+              className="px-8 py-3 bg-white text-black font-semibold rounded-full hover:bg-gray-200 transition-colors shadow-[0_0_20px_rgba(255,255,255,0.2)]"
             >
               Get Started
             </motion.button>

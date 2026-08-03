@@ -153,7 +153,27 @@ func (s *Service) ProcessWebhook(ctx context.Context, deliveryID, eventType, act
 		}
 	}
 
-	if pullNumber > 0 && repoType.Valid {
+	if pullNumber > 0 && repoType.Valid && (action == "opened" || action == "synchronize") {
+		// Check rate limit: 7 PR reviews per day per installation
+		var dailyCount int
+		query := `
+			SELECT COUNT(*) 
+			FROM webhook_payloads 
+			WHERE event_type = 'pull_request' 
+			  AND action IN ('opened', 'synchronize') 
+			  AND installation_id = $1 
+			  AND created_at >= CURRENT_DATE
+		`
+		err = tx.QueryRow(ctx, query, installationID).Scan(&dailyCount)
+		if err == nil && dailyCount >= 7 {
+			log.Printf("Rate limit exceeded for installation %d: %d PR reviews triggered today", installationID, dailyCount)
+			// Commit the transaction to save the payload, but don't queue an outbox event
+			if err := tx.Commit(ctx); err != nil {
+				return fmt.Errorf("failed to commit transaction (rate limit exceeded): %w", err)
+			}
+			return nil
+		}
+
 		aggregateID := fmt.Sprintf("%d:%d", repoType.Int64, pullNumber)
 		outboxParams := db.InsertOutboxEventParams{
 			AggregateID:  aggregateID,
