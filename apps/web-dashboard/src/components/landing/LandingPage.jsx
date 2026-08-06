@@ -212,7 +212,7 @@ export default function LandingPage() {
                   className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/5 mb-8"
                 >
                   <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                  <span className="text-xs font-medium text-indigo-300">Now reviewing 10,000+ PRs daily</span>
+                  <span className="text-xs font-medium text-indigo-300">AI-powered code review platform</span>
                 </motion.div>
 
                 <motion.h1
@@ -640,10 +640,10 @@ export default function LandingPage() {
           <span
             className="text-[22vw] leading-[0.75] font-bold text-transparent"
             style={{
-              WebkitTextStroke: '1px rgba(99, 102, 241, 0.15)',
+              WebkitTextStroke: '1px rgba(99, 102, 241, 0.07)',
               letterSpacing: '-0.04em',
-              WebkitMaskImage: 'linear-gradient(to bottom, black 20%, transparent 90%)',
-              maskImage: 'linear-gradient(to bottom, black 20%, transparent 90%)'
+              WebkitMaskImage: 'linear-gradient(to bottom, black 15%, transparent 80%)',
+              maskImage: 'linear-gradient(to bottom, black 15%, transparent 80%)'
             }}>
             Sentra
           </span>

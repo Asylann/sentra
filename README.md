@@ -1,5 +1,7 @@
 # Sentra
 
+> **[View Live Demo](https://sentra-ai.me)**
+
 Sentra is an automated AI-powered code review and security analysis platform designed to integrate seamlessly into your development workflow. It evaluates pull requests in real-time to enforce code quality, identify security vulnerabilities, and ensure maintainability before code is merged.
 
 ## Architecture Overview
@@ -58,4 +60,4 @@ The Sentra platform operates via a microservices architecture to ensure high sca
 
 ## License
 
-Copyright (c) 2026 Sentra. All rights reserved.
+This project is licensed under the [MIT License](LICENSE).
