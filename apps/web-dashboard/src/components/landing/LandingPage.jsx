@@ -205,16 +205,6 @@ export default function LandingPage() {
 
             <div className="flex-1 mt-12 md:mt-0">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.2 }}>
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/5 mb-8"
-                >
-                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                  <span className="text-xs font-medium text-indigo-300">AI-powered code review platform</span>
-                </motion.div>
-
                 <motion.h1
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -638,12 +628,12 @@ export default function LandingPage() {
           className="w-full overflow-hidden flex justify-center pt-16 pb-4 select-none pointer-events-none relative -mb-6"
         >
           <span
-            className="text-[22vw] leading-[0.75] font-bold text-transparent"
+            className="text-[22vw] leading-[0.75] font-bold"
             style={{
-              WebkitTextStroke: '1px rgba(99, 102, 241, 0.07)',
+              color: 'rgba(99, 102, 241, 0.13)',
               letterSpacing: '-0.04em',
-              WebkitMaskImage: 'linear-gradient(to bottom, black 15%, transparent 80%)',
-              maskImage: 'linear-gradient(to bottom, black 15%, transparent 80%)'
+              WebkitMaskImage: 'linear-gradient(to bottom, black 50%, transparent 95%)',
+              maskImage: 'linear-gradient(to bottom, black 50%, transparent 95%)'
             }}>
             Sentra
           </span>
