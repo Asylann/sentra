@@ -165,7 +165,7 @@ func (s *Service) ProcessWebhook(ctx context.Context, deliveryID, eventType, act
 			  AND created_at >= CURRENT_DATE
 		`
 		err = tx.QueryRow(ctx, query, installationID).Scan(&dailyCount)
-		if err == nil && dailyCount >= 7 {
+		if err == nil && dailyCount >= 500 {
 			log.Printf("Rate limit exceeded for installation %d: %d PR reviews triggered today", installationID, dailyCount)
 			// Commit the transaction to save the payload, but don't queue an outbox event
 			if err := tx.Commit(ctx); err != nil {
