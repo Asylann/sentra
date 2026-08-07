@@ -22,7 +22,7 @@ func NewDashboardHandler(queries *db.Queries) *DashboardHandler {
 }
 
 func (h *DashboardHandler) GetPullRequests(c *gin.Context) {
-	limit := int32(50)
+	limit := int32(200)
 
 	prs, err := h.Queries.GetRecentPullRequests(c, limit)
 	if err != nil {
@@ -32,18 +32,6 @@ func (h *DashboardHandler) GetPullRequests(c *gin.Context) {
 
 	if prs == nil {
 		prs = []db.GetRecentPullRequestsRow{}
-	}
-
-	userLogin, exists := c.Get(auth.ContextKeyGitHubLogin)
-	if exists {
-		var filtered []db.GetRecentPullRequestsRow
-		loginStr := userLogin.(string)
-		for _, pr := range prs {
-			if strings.EqualFold(pr.AuthorLogin, loginStr) {
-				filtered = append(filtered, pr)
-			}
-		}
-		prs = filtered
 	}
 
 	c.JSON(http.StatusOK, gin.H{
