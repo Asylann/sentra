@@ -89,17 +89,43 @@ class GitHubCheckRunsAPI:
         annotations = []
         for finding in findings:
             line = finding.get('line_start', 1)
-            # Ensure line is valid
             if line < 1:
                 line = 1
-                
+
+            severity = finding.get('severity', 'INFO').upper()
+            category = finding.get('category', '')
+            description = finding.get('description', '')
+            suggested_fix = finding.get('suggested_fix', '').strip()
+
+            severity_badge = {
+                "CRITICAL": "🔴 **CRITICAL**",
+                "HIGH":     "🟠 **HIGH**",
+                "MEDIUM":   "🟡 **MEDIUM**",
+                "LOW":      "🔵 **LOW**",
+                "INFO":     "⚪ **INFO**",
+            }.get(severity, "⚪ **INFO**")
+
+            message_parts = [
+                f"{severity_badge}" + (f" · `{category}`" if category else ""),
+                "",
+                description,
+            ]
+
+            if suggested_fix:
+                # Detect if the fix already contains a fenced code block; if so render as-is.
+                # Otherwise wrap in a diff block for syntax highlighting.
+                if "```" in suggested_fix:
+                    message_parts += ["", "**Suggested Fix**", "", suggested_fix]
+                else:
+                    message_parts += ["", "**Suggested Fix**", "", f"```diff\n{suggested_fix}\n```"]
+
             annotations.append({
                 "path": finding.get('file_path', 'unknown_file'),
                 "start_line": line,
                 "end_line": line,
-                "annotation_level": self._map_severity(finding.get('severity', 'INFO')),
+                "annotation_level": self._map_severity(severity),
                 "title": finding.get('title', 'Analysis Finding'),
-                "message": f"{finding.get('description', '')}\n\nSuggested Fix:\n```\n{finding.get('suggested_fix', '')}\n```"
+                "message": "\n".join(message_parts),
             })
 
         # 2. Chunk arrays into sizes of 50 to avoid HTTP 422 Unprocessable Entity

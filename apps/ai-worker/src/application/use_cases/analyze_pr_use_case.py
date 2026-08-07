@@ -186,7 +186,31 @@ class AnalyzePRUseCase:
             # Step 8: Aggregate and Score
             logger.info("Step 8: Calculating Final Quality Score")
             quality_score, conclusion = QualityScorer.evaluate(all_findings)
-            summary = f"### Sentra Analysis Complete\n**Final Quality Score: {quality_score}/100**\n\nIdentified {len(all_findings)} issues."
+
+            counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}
+            for f in all_findings:
+                sev = f.get("severity", "INFO").upper()
+                counts[sev] = counts.get(sev, 0) + 1
+
+            score_emoji = "🟢" if quality_score >= 90 else ("🟡" if quality_score >= 70 else "🔴")
+            conclusion_badge = "✅ **Passed**" if conclusion == "success" else "❌ **Failed**"
+
+            summary = (
+                f"## Sentra AI Security Review\n\n"
+                f"| | |\n"
+                f"|---|---|\n"
+                f"| **Quality Score** | {score_emoji} **{quality_score}/100** |\n"
+                f"| **Gate** | {conclusion_badge} |\n"
+                f"| **Total Findings** | {len(all_findings)} |\n\n"
+                f"### Findings Breakdown\n\n"
+                f"| Severity | Count |\n"
+                f"|---|---|\n"
+                f"| 🔴 Critical | {counts['CRITICAL']} |\n"
+                f"| 🟠 High | {counts['HIGH']} |\n"
+                f"| 🟡 Medium | {counts['MEDIUM']} |\n"
+                f"| 🔵 Low | {counts['LOW']} |\n"
+                f"| ⚪ Info | {counts['INFO']} |\n"
+            )
 
             # Step 9: Complete Check Run
             logger.info("Step 9: Completing Check Run and Posting Annotations")
