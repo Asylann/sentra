@@ -162,7 +162,7 @@ func (s *Service) ProcessWebhook(ctx context.Context, deliveryID, eventType, act
 			WHERE event_type = 'pull_request' 
 			  AND action IN ('opened', 'synchronize') 
 			  AND installation_id = $1 
-			  AND created_at >= CURRENT_DATE
+			  AND received_at >= CURRENT_DATE
 		`
 		err = tx.QueryRow(ctx, query, installationID).Scan(&dailyCount)
 		if err == nil && dailyCount >= 500 {
