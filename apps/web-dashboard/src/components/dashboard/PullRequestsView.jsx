@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
+import { useWorkspace } from '../../context/WorkspaceContext';
 import {
   GitPullRequest,
   Search,
@@ -12,6 +13,8 @@ import {
   ChevronRight,
   AlertTriangle,
   Loader2,
+  Users,
+  X,
 } from 'lucide-react';
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
@@ -51,19 +54,131 @@ const SkeletonRow = () => (
   </div>
 );
 
+// ─── Developer Filter ─────────────────────────────────────────────────────────
+function DeveloperFilter({ members, selected, onToggle }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={`flex items-center gap-2 px-3 py-2.5 bg-white/[0.03] border rounded-xl text-sm transition-all ${
+          selected.length > 0
+            ? 'border-indigo-500/40 text-indigo-400'
+            : 'border-white/[0.06] text-zinc-500 hover:text-zinc-300'
+        }`}
+      >
+        <Users className="size-4" />
+        <span className="hidden sm:inline">
+          {selected.length > 0 ? `${selected.length} developer${selected.length > 1 ? 's' : ''}` : 'Filter by dev'}
+        </span>
+        {selected.length > 0 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggle(null); }}
+            className="ml-1 p-0.5 rounded hover:bg-white/10"
+          >
+            <X className="size-3" />
+          </button>
+        )}
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+              transition={{ duration: 0.15 }}
+              className="absolute top-11 right-0 z-20 w-60 bg-[#111] border border-white/10 rounded-xl shadow-2xl overflow-hidden"
+            >
+              <div className="px-3 py-2 border-b border-white/[0.06]">
+                <p className="text-xs font-medium text-zinc-500">Select developers</p>
+              </div>
+              <div className="max-h-48 overflow-y-auto py-1">
+                {members.map(m => {
+                  const isSelected = selected.includes(m.login);
+                  return (
+                    <button
+                      key={m.user_id}
+                      onClick={() => onToggle(m.login)}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors ${
+                        isSelected ? 'bg-indigo-500/10 text-white' : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
+                      }`}
+                    >
+                      <div className="size-6 rounded-full bg-indigo-500/20 flex items-center justify-center text-[10px] text-indigo-400 font-bold shrink-0">
+                        {m.login?.[0]?.toUpperCase() || '?'}
+                      </div>
+                      <span className="truncate">{m.name || m.login}</span>
+                      {isSelected && (
+                        <div className="ml-auto size-4 rounded bg-indigo-500 flex items-center justify-center">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function PullRequestsView() {
   const { fetchWithAuth } = useAuth();
+  const { currentOrg, isCompanyWorkspace } = useWorkspace();
   const [prs, setPrs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [members, setMembers] = useState([]);
+  const [selectedDevs, setSelectedDevs] = useState([]);
+
+  // Fetch org members for company workspaces
+  useEffect(() => {
+    if (!isCompanyWorkspace || !currentOrg?.id) return;
+    async function loadMembers() {
+      try {
+        const res = await fetchWithAuth(`/api/v1/orgs/${currentOrg.id}/members`);
+        if (res.ok) {
+          const json = await res.json();
+          setMembers(json.data || []);
+        }
+      } catch {
+        // silently ignore
+      }
+    }
+    loadMembers();
+  }, [fetchWithAuth, isCompanyWorkspace, currentOrg?.id]);
+
+  const handleToggleDev = useCallback((login) => {
+    if (login === null) {
+      setSelectedDevs([]);
+      return;
+    }
+    setSelectedDevs(prev =>
+      prev.includes(login) ? prev.filter(l => l !== login) : [...prev, login]
+    );
+  }, []);
 
   useEffect(() => {
     async function load() {
+      setLoading(true);
       try {
-        const res = await fetchWithAuth('/api/v1/prs');
+        let url = '/api/v1/prs';
+        if (isCompanyWorkspace && currentOrg?.id && selectedDevs.length > 0) {
+          const params = selectedDevs.map(d => `author=${encodeURIComponent(d)}`).join('&');
+          url = `/api/v1/orgs/${currentOrg.id}/prs?${params}`;
+        } else if (isCompanyWorkspace && currentOrg?.id) {
+          url = `/api/v1/orgs/${currentOrg.id}/prs`;
+        }
+        const res = await fetchWithAuth(url);
         if (!res.ok) throw new Error(`Failed to fetch PRs (${res.status})`);
         const json = await res.json();
         setPrs(json.data || []);
@@ -74,7 +189,7 @@ export default function PullRequestsView() {
       }
     }
     if (fetchWithAuth) load();
-  }, [fetchWithAuth]);
+  }, [fetchWithAuth, isCompanyWorkspace, currentOrg?.id, selectedDevs]);
 
   // ── Filtering ──
   const filtered = useMemo(() => {
@@ -172,6 +287,15 @@ export default function PullRequestsView() {
             </button>
           ))}
         </div>
+
+        {/* Developer filter (company workspaces only) */}
+        {isCompanyWorkspace && members.length > 0 && (
+          <DeveloperFilter
+            members={members}
+            selected={selectedDevs}
+            onToggle={handleToggleDev}
+          />
+        )}
       </motion.div>
 
       {/* ── Table Card ── */}

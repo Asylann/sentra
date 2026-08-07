@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { WorkspaceProvider } from './context/WorkspaceContext';
 
 // Pages
 import Login from './pages/Login';
@@ -13,6 +14,7 @@ import PullRequestDetailView from './components/dashboard/PullRequestDetailView'
 import PullRequestsView from './components/dashboard/PullRequestsView';
 import RepositoriesView from './components/dashboard/RepositoriesView';
 import SettingsView from './components/dashboard/SettingsView';
+import LeaderboardView from './components/dashboard/LeaderboardView';
 import Header from './components/layout/Header';
 import LandingPage from './components/landing/LandingPage';
 import SamplesPage from './components/landing/SamplesPage';
@@ -30,17 +32,11 @@ import { SentraWSProvider } from './context/SentraWSContext';
 
 /**
  * ProtectedRoute — enforces authentication and onboarding state.
- *
- * Redirect logic:
- *  - Not authenticated         → /login
- *  - Authenticated, no install → /onboarding
- *  - Authenticated + installed → render children (dashboard)
  */
 function ProtectedRoute({ children }) {
   const { isAuthenticated, hasInstallation, loading } = useAuth();
 
   if (loading) {
-    // Show a minimal loading screen while we validate the JWT
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
         <div className="relative size-10">
@@ -68,17 +64,18 @@ function ProtectedRoute({ children }) {
 function DashboardLayout() {
   return (
     <div className="min-h-screen bg-[#000] text-[#ededed] font-sans selection:bg-gray-800 relative overflow-hidden">
-      {/* Minimalist Vercel-style static background */}
       <div className="absolute inset-0 z-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 0%, #161616 0%, transparent 60%)' }}>
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:24px_24px]" />
       </div>
 
       <div className="relative z-10 h-full flex flex-col">
         <SentraWSProvider>
-          <Header />
-          <main className="container mx-auto px-4 py-8 flex-1">
-            <Outlet />
-          </main>
+          <WorkspaceProvider>
+            <Header />
+            <main className="container mx-auto px-4 py-8 flex-1">
+              <Outlet />
+            </main>
+          </WorkspaceProvider>
         </SentraWSProvider>
       </div>
     </div>
@@ -119,6 +116,7 @@ export default function App() {
             <Route path="prs/:id" element={<PullRequestDetailView />} />
             <Route path="repositories" element={<RepositoriesView />} />
             <Route path="settings" element={<SettingsView />} />
+            <Route path="leaderboard" element={<LeaderboardView />} />
           </Route>
 
           {/* Landing Page */}
@@ -141,7 +139,6 @@ export default function App() {
   );
 }
 
-/** Requires authentication but doesn't require installation (for /onboarding) */
 function RequireAuth({ children }) {
   const { isAuthenticated, loading } = useAuth();
 

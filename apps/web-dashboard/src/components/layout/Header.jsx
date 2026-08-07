@@ -2,11 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
+import NotificationBell from './NotificationBell';
+import WorkspaceSwitcher from './WorkspaceSwitcher';
 
-/**
- * Header — sticky top navigation for the authenticated dashboard.
- * Shows the Sentra logo, nav links, and the authenticated user's avatar + logout.
- */
 export default function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -18,36 +16,43 @@ export default function Header() {
   };
 
   return (
-    <motion.header 
+    <motion.header
       initial={{ y: -100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
       className="sticky top-0 z-50 w-full border-b border-white/[0.05] bg-black/60 backdrop-blur-xl"
     >
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        {/* Logo */}
-        <Link to="/" className="flex items-center">
-          <img src="/logo_with_name.png" alt="Sentra" className="h-10" />
-        </Link>
+        {/* Left: Logo + Workspace Switcher */}
+        <div className="flex items-center gap-3">
+          <Link to="/" className="flex items-center">
+            <img src="/logo_with_name.png" alt="Sentra" className="h-10" />
+          </Link>
+          <div className="hidden sm:block h-6 w-px bg-white/[0.08]" />
+          <div className="hidden sm:block">
+            <WorkspaceSwitcher />
+          </div>
+        </div>
 
         {/* Navigation */}
         <div className="hidden md:flex items-center gap-6 text-sm text-gray-400">
           <Link to="/dashboard" className="hover:text-white transition-colors">Dashboard</Link>
           <Link to="/dashboard/prs" className="hover:text-white transition-colors">Pull Requests</Link>
+          <Link to="/dashboard/leaderboard" className="hover:text-white transition-colors">Leaderboard</Link>
           <Link to="/dashboard/repositories" className="hover:text-white transition-colors">Repositories</Link>
           <Link to="/dashboard/settings" className="hover:text-white transition-colors">Settings</Link>
         </div>
 
-        {/* User section */}
-        <div className="flex items-center gap-3 relative">
+        {/* Right: Notifications + User */}
+        <div className="flex items-center gap-2 relative">
+          <NotificationBell />
+
           {user ? (
             <>
-              {/* User info */}
               <div className="hidden sm:flex items-center gap-2">
                 <span className="text-sm text-white/40">{user.login}</span>
               </div>
 
-              {/* Avatar button */}
               <button
                 id="user-menu-btn"
                 onClick={() => setMenuOpen((o) => !o)}
@@ -62,11 +67,9 @@ export default function Header() {
                 )}
               </button>
 
-              {/* Dropdown menu */}
               <AnimatePresence>
                 {menuOpen && (
                   <>
-                    {/* Backdrop */}
                     <div
                       className="fixed inset-0 z-10"
                       onClick={() => setMenuOpen(false)}
@@ -78,12 +81,10 @@ export default function Header() {
                       transition={{ duration: 0.15 }}
                       className="absolute top-10 right-0 z-20 w-52 bg-[#111] border border-white/10 rounded-xl shadow-2xl overflow-hidden"
                     >
-                      {/* User header */}
                       <div className="px-4 py-3 border-b border-white/[0.06]">
                         <p className="text-sm font-medium text-white">{user.name || user.login}</p>
                         <p className="text-xs text-white/30 mt-0.5">@{user.login}</p>
                       </div>
-                      {/* Menu items */}
                       <div className="py-1">
                         <a
                           href="https://github.com/apps/sentra-devex"
@@ -116,7 +117,6 @@ export default function Header() {
               </AnimatePresence>
             </>
           ) : (
-            /* Skeleton while loading */
             <div className="size-8 rounded-full bg-white/5 animate-pulse" />
           )}
         </div>

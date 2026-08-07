@@ -21,6 +21,7 @@ Depends ONLY on domain Protocols (interfaces). All implementations are injected.
 from ...domain.ports.llm_client import LLMClientProtocol
 from ...domain.ports.diff_fetcher import DiffFetcherProtocol
 from ...domain.ports.check_runs_client import CheckRunsClientProtocol
+from ...domain.ports.rag_context_provider import RAGContextProviderProtocol
 from ...domain.entities.pull_request import PullRequest
 from ..services.context_pruner import ContextPruner
 from ..services.quality_scorer import compute_quality_score, should_block_merge
@@ -32,20 +33,31 @@ class AnalyzePullRequestUseCase:
         diff_fetcher: DiffFetcherProtocol,
         llm_client: LLMClientProtocol,
         check_runs_client: CheckRunsClientProtocol,
+        rag_provider: RAGContextProviderProtocol | None = None,
     ) -> None:
         self._diff_fetcher = diff_fetcher
         self._llm_client = llm_client
         self._check_runs = check_runs_client
         self._pruner = ContextPruner()
+        self._rag = rag_provider
 
     async def execute(self, pull_request: PullRequest) -> None:
         """Run the complete analysis pipeline for a single Pull Request."""
         raw_diff = await self._diff_fetcher.fetch_diff(pull_request)
         pruned_diff = self._pruner.prune(raw_diff)
+
+        system_context = ""
+        if self._rag and pull_request.organization_id:
+            system_context = await self._rag.get_context_for_pr(
+                organization_id=pull_request.organization_id,
+                repository_id=pull_request.repository_id,
+                author_login=pull_request.author_login,
+            )
+
         findings = await self._llm_client.analyze_code(
             pull_request=pull_request,
             diff_content=pruned_diff,
-            system_context="",  # TODO Phase 7: inject RAG context
+            system_context=system_context,
         )
         score = compute_quality_score(findings)
         blocked = should_block_merge(findings, score)

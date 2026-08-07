@@ -65,6 +65,8 @@ CREATE TABLE users (
     -- Populated when the GitHub App installation webhook fires, or
     -- checked via GET /user/installations on each login.
     installation_id         BIGINT,
+    -- Active organization context for multi-tenancy
+    current_org_id          BIGINT          REFERENCES organizations(id) ON DELETE SET NULL,
     -- Timestamps
     created_at              TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ     NOT NULL DEFAULT NOW()
@@ -96,6 +98,8 @@ CREATE TABLE organizations (
     -- Access control
     plan_tier               TEXT            NOT NULL DEFAULT 'free',  -- free | pro | enterprise
     is_active               BOOLEAN         NOT NULL DEFAULT TRUE,
+    -- B2B workspace type (personal = individual user workspace, company = team workspace)
+    workspace_type          TEXT            NOT NULL DEFAULT 'company',
     -- Quality gate defaults (overridable per repository via repository_policies)
     quality_gate_threshold  INT             NOT NULL DEFAULT 80
         CONSTRAINT chk_orgs_qs_threshold CHECK (quality_gate_threshold BETWEEN 0 AND 100),
@@ -104,7 +108,8 @@ CREATE TABLE organizations (
     updated_at              TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
 
     CONSTRAINT chk_orgs_plan CHECK (plan_tier IN ('free', 'pro', 'enterprise')),
-    CONSTRAINT chk_orgs_type CHECK (type IN ('Organization', 'User'))
+    CONSTRAINT chk_orgs_type CHECK (type IN ('Organization', 'User')),
+    CONSTRAINT chk_orgs_workspace_type CHECK (workspace_type IN ('personal', 'company'))
 );
 
 COMMENT ON TABLE  organizations IS
@@ -226,6 +231,42 @@ CREATE TABLE organization_members (
 
     PRIMARY KEY (organization_id, developer_id),
     CONSTRAINT chk_org_member_role CHECK (role IN ('member', 'admin', 'billing_manager'))
+);
+
+
+-- -----------------------------------------------------------------------------
+-- organization_users
+-- Many-to-many: dashboard users (not developers) who belong to an organization.
+-- Powers B2B multi-tenancy: users can be members of multiple organizations.
+-- -----------------------------------------------------------------------------
+CREATE TABLE organization_users (
+    org_id          BIGINT  NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    user_id         BIGINT  NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role            TEXT    NOT NULL DEFAULT 'member',  -- admin | member
+    joined_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    PRIMARY KEY (org_id, user_id),
+    CONSTRAINT chk_org_users_role CHECK (role IN ('admin', 'member'))
+);
+
+
+-- -----------------------------------------------------------------------------
+-- organization_invites
+-- Pending invitations to join an organization workspace.
+-- One active invite per email per organization (UNIQUE constraint).
+-- -----------------------------------------------------------------------------
+CREATE TABLE organization_invites (
+    id              BIGSERIAL   PRIMARY KEY,
+    org_id          BIGINT      NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    inviter_id      BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    target_email    TEXT        NOT NULL,
+    target_github_login TEXT,
+    status          TEXT        NOT NULL DEFAULT 'pending',  -- pending | accepted | declined
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    UNIQUE (org_id, target_email),
+    CONSTRAINT chk_org_invites_status CHECK (status IN ('pending', 'accepted', 'declined'))
 );
 
 
@@ -918,6 +959,13 @@ COMMENT ON COLUMN dora_daily_rollup.repository_id IS
 CREATE INDEX idx_organizations_login        ON organizations(login);
 CREATE INDEX idx_organizations_installation ON organizations(installation_id);
 
+-- ---- organization_users -----------------------------------------------------
+CREATE INDEX idx_org_users_user             ON organization_users(user_id);
+
+-- ---- organization_invites ---------------------------------------------------
+CREATE INDEX idx_org_invites_email          ON organization_invites(target_email);
+CREATE INDEX idx_org_invites_status         ON organization_invites(org_id, status);
+
 -- ---- repositories -----------------------------------------------------------
 CREATE INDEX idx_repositories_org          ON repositories(organization_id);
 CREATE INDEX idx_repositories_full_name    ON repositories(full_name);
@@ -1013,6 +1061,8 @@ CREATE INDEX idx_tokens_expires            ON installation_tokens(expires_at)
 -- TABLE COMMENTS (summary level)
 -- =============================================================================
 COMMENT ON TABLE organization_members        IS 'M2M: developers belonging to an organization.';
+COMMENT ON TABLE organization_users          IS 'M2M: dashboard users belonging to an organization (B2B multi-tenancy).';
+COMMENT ON TABLE organization_invites        IS 'Pending invitations to join an organization workspace.';
 COMMENT ON TABLE team_members                IS 'M2M: developers within a team.';
 COMMENT ON TABLE team_repositories           IS 'M2M: repositories managed by a team.';
 COMMENT ON TABLE repository_policies         IS 'Per-repo or org-level analysis configuration.';

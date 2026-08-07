@@ -252,3 +252,159 @@ FROM review_findings
 WHERE pull_request_id = $1
 ORDER BY line_start ASC;
 
+
+-- =============================================================================
+-- B2B Multi-Tenancy Queries (Phase: B2B SaaS Pivot)
+-- =============================================================================
+
+-- name: CreatePersonalOrganization :one
+-- Creates a personal workspace org for an individual user.
+INSERT INTO organizations (
+    github_id, login, display_name, avatar_url, type, installation_id,
+    plan_tier, is_active, quality_gate_threshold, workspace_type
+) VALUES (
+    $1, $2, $3, $4, 'User', $5, 'free', true, 80, 'personal'
+)
+ON CONFLICT (github_id) DO UPDATE SET login = EXCLUDED.login
+RETURNING id;
+
+-- name: CreateCompanyOrganization :one
+-- Creates a company workspace org for a team.
+INSERT INTO organizations (
+    github_id, login, display_name, avatar_url, type, installation_id,
+    plan_tier, is_active, quality_gate_threshold, workspace_type
+) VALUES (
+    $1, $2, $3, $4, 'Organization', $5, 'free', true, 80, 'company'
+)
+ON CONFLICT (github_id) DO UPDATE SET login = EXCLUDED.login
+RETURNING id;
+
+-- name: AddOrganizationUser :exec
+-- Adds a user to an organization with a given role.
+INSERT INTO organization_users (org_id, user_id, role)
+VALUES ($1, $2, $3)
+ON CONFLICT (org_id, user_id) DO NOTHING;
+
+-- name: SetUserCurrentOrg :exec
+-- Sets the user's active workspace.
+UPDATE users SET current_org_id = $1, updated_at = NOW() WHERE id = $2;
+
+-- name: GetUserOrganizations :many
+-- Fetches all organizations a user belongs to.
+SELECT
+    o.id, o.login, o.display_name, o.avatar_url, o.workspace_type,
+    ou.role, ou.joined_at
+FROM organization_users ou
+JOIN organizations o ON o.id = ou.org_id
+WHERE ou.user_id = $1
+ORDER BY ou.joined_at ASC;
+
+-- name: GetUserPendingInvites :many
+-- Fetches pending invites for a user by their email.
+SELECT
+    i.id, i.org_id, i.target_email, i.status, i.created_at,
+    o.login AS org_login, o.display_name AS org_display_name, o.avatar_url AS org_avatar_url,
+    u.login AS inviter_login
+FROM organization_invites i
+JOIN organizations o ON o.id = i.org_id
+JOIN users u ON u.id = i.inviter_id
+WHERE i.target_email = $1 AND i.status = 'pending'
+ORDER BY i.created_at DESC;
+
+-- name: GetInviteByID :one
+-- Fetches an invite by its ID.
+SELECT id, org_id, inviter_id, target_email, status
+FROM organization_invites
+WHERE id = $1;
+
+-- name: UpdateInviteStatus :exec
+-- Accepts or declines an invite.
+UPDATE organization_invites
+SET status = $1, updated_at = NOW()
+WHERE id = $2;
+
+-- name: CreateInvite :one
+-- Creates a new organization invite.
+INSERT INTO organization_invites (org_id, inviter_id, target_email, target_github_login, status)
+VALUES ($1, $2, $3, $4, 'pending')
+ON CONFLICT (org_id, target_email) DO UPDATE SET status = 'pending', updated_at = NOW()
+RETURNING id;
+
+-- name: GetOrgPullRequests :many
+-- Fetches PRs for a specific organization.
+SELECT
+    pr.id,
+    pr.title,
+    pr.pull_number,
+    pr.author_login,
+    pr.state,
+    pr.merged_at,
+    pr.analysis_status,
+    pr.quality_score,
+    pr.merge_blocked,
+    pr.findings_critical,
+    pr.findings_high,
+    pr.findings_medium,
+    pr.findings_low,
+    pr.findings_info,
+    pr.created_at,
+    r.full_name AS repository_full_name
+FROM pull_requests pr
+JOIN repositories r ON pr.repository_id = r.id
+WHERE pr.organization_id = $1
+ORDER BY pr.created_at DESC
+LIMIT $2;
+
+-- name: GetOrgPullRequestsByAuthor :many
+-- Fetches PRs for a specific organization filtered by author login.
+SELECT
+    pr.id,
+    pr.title,
+    pr.pull_number,
+    pr.author_login,
+    pr.state,
+    pr.merged_at,
+    pr.analysis_status,
+    pr.quality_score,
+    pr.merge_blocked,
+    pr.findings_critical,
+    pr.findings_high,
+    pr.findings_medium,
+    pr.findings_low,
+    pr.findings_info,
+    pr.created_at,
+    r.full_name AS repository_full_name
+FROM pull_requests pr
+JOIN repositories r ON pr.repository_id = r.id
+WHERE pr.organization_id = $1 AND pr.author_login = $3
+ORDER BY pr.created_at DESC
+LIMIT $2;
+
+-- name: GetOrgLeaderboard :many
+-- Engineering leaderboard: group by developer, count PRs, avg quality, performance index.
+SELECT
+    pr.author_login,
+    COUNT(pr.id)::int AS pr_count,
+    COALESCE(AVG(pr.quality_score), 0)::float AS avg_quality_score,
+    (COUNT(pr.id) * COALESCE(AVG(pr.quality_score), 50) / 100.0)::float AS performance_index
+FROM pull_requests pr
+WHERE pr.organization_id = $1
+  AND pr.analysis_status = 'completed'
+  AND pr.quality_score IS NOT NULL
+GROUP BY pr.author_login
+ORDER BY performance_index DESC;
+
+-- name: GetOrgMembers :many
+-- Fetches all members of an organization.
+SELECT
+    ou.user_id, ou.role, ou.joined_at,
+    u.login, u.name, u.avatar_url
+FROM organization_users ou
+JOIN users u ON u.id = ou.user_id
+WHERE ou.org_id = $1
+ORDER BY ou.joined_at ASC;
+
+-- name: GetUserCurrentOrg :one
+-- Get user's current org id.
+SELECT current_org_id FROM users WHERE id = $1;
+

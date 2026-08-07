@@ -20,7 +20,10 @@ import (
 	"github.com/usena/sentra/api-gateway/internal/dashboard"
 	"github.com/usena/sentra/api-gateway/internal/db"
 	"github.com/usena/sentra/api-gateway/internal/dedup"
+	"github.com/usena/sentra/api-gateway/internal/invites"
 	"github.com/usena/sentra/api-gateway/internal/kafka"
+	"github.com/usena/sentra/api-gateway/internal/onboarding"
+	"github.com/usena/sentra/api-gateway/internal/organizations"
 	"github.com/usena/sentra/api-gateway/internal/users"
 	"github.com/usena/sentra/api-gateway/internal/webhook"
 	"github.com/usena/sentra/api-gateway/internal/ws"
@@ -103,6 +106,11 @@ func main() {
 	// 8. Dashboard Handler
 	dashboardHandler := dashboard.NewDashboardHandler(queries)
 
+	// 9. B2B Multi-Tenancy Handlers
+	onboardingHandler := onboarding.NewHandler(queries)
+	invitesHandler := invites.NewHandler(queries)
+	orgsHandler := organizations.NewHandler(queries)
+
 	// ---------------------------------------------------------------------------
 	// Start background workers
 	// ---------------------------------------------------------------------------
@@ -168,6 +176,17 @@ func main() {
 			protected.GET("/prs/:id", dashboardHandler.GetPullRequest)
 			protected.GET("/metrics", dashboardHandler.GetMetrics)
 			protected.GET("/repositories", dashboardHandler.GetRepositories)
+
+			// B2B multi-tenancy routes
+			protected.POST("/auth/onboarding", onboardingHandler.CompleteOnboarding)
+			protected.GET("/users/me/invites", invitesHandler.GetMyInvites)
+			protected.GET("/users/me/orgs", orgsHandler.GetMyOrganizations)
+			protected.POST("/users/me/orgs/switch", orgsHandler.SwitchOrganization)
+			protected.POST("/invites/:id/respond", invitesHandler.RespondToInvite)
+			protected.GET("/orgs/:id/prs", orgsHandler.GetOrgPRs)
+			protected.GET("/orgs/:id/leaderboard", orgsHandler.GetLeaderboard)
+			protected.GET("/orgs/:id/members", orgsHandler.GetOrgMembers)
+			protected.POST("/orgs/:id/invites", invitesHandler.CreateInvite)
 		}
 	}
 

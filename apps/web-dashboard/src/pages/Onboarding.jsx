@@ -1,34 +1,36 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { User, Building2, ArrowRight, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-/**
- * Onboarding page — shown when a user is authenticated but hasn't installed
- * the Sentra GitHub App yet.
- *
- * Features:
- * - Step-by-step guide explaining what Sentra does
- * - CTA button linking to the GitHub App installation URL
- * - Auto-polls every 5s to detect when installation completes
- * - Smooth transition to dashboard once installed
- */
 export default function Onboarding() {
-  const { user, token, hasInstallation, refreshUser, logout, apiBase } = useAuth();
+  const { user, token, hasInstallation, refreshUser, logout, fetchWithAuth, apiBase } = useAuth();
   const navigate = useNavigate();
+
+  const [step, setStep] = useState('workspace');
+  const [selected, setSelected] = useState(null);
+  const [orgName, setOrgName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [checking, setChecking] = useState(false);
   const [pollCount, setPollCount] = useState(0);
 
-  // If somehow they already have an installation, skip straight to dashboard
   useEffect(() => {
     if (hasInstallation) {
       navigate('/dashboard', { replace: true });
     }
   }, [hasInstallation, navigate]);
 
-  // Poll every 5 seconds to check if the user has installed the app
+  // If user already completed onboarding but not install, skip to install step
   useEffect(() => {
-    if (!token) return;
+    if (user?.onboarding_completed && !hasInstallation) {
+      setStep('install');
+    }
+  }, [user, hasInstallation]);
+
+  // Poll for installation when on install step
+  useEffect(() => {
+    if (step !== 'install' || !token) return;
 
     const interval = setInterval(async () => {
       try {
@@ -38,50 +40,63 @@ export default function Onboarding() {
         if (res.ok) {
           const data = await res.json();
           if (data.installed) {
-            // Refresh user in context (which updates hasInstallation) then navigate
             refreshUser();
           }
         }
       } catch {
-        // Silently ignore poll errors
+        // silently ignore
       }
-      setPollCount((c) => c + 1);
+      setPollCount(c => c + 1);
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [token, apiBase, refreshUser]);
+  }, [step, token, apiBase, refreshUser]);
+
+  const handleSubmitWorkspace = async () => {
+    if (!selected) return;
+    if (selected === 'company' && !orgName.trim()) return;
+
+    setSubmitting(true);
+    try {
+      const body = { workspace_type: selected };
+      if (selected === 'company') body.org_name = orgName.trim();
+
+      const res = await fetchWithAuth('/api/v1/auth/onboarding', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        setStep('install');
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleInstallClick = () => {
     setChecking(true);
     window.open('https://github.com/apps/sentra-devex', '_blank');
-    // After they open the tab, start showing a "waiting" state
     setTimeout(() => setChecking(false), 3000);
   };
 
-  const steps = [
-    {
-      icon: '🔒',
-      title: 'Secure repository access',
-      desc: 'Sentra reads your PR diffs to perform AI analysis. It never writes to your code.',
-    },
-    {
-      icon: '🤖',
-      title: 'AI-powered analysis',
-      desc: 'Every Pull Request is analyzed by a state-of-the-art AI model for security, complexity, and architecture.',
-    },
-    {
-      icon: '📊',
-      title: 'Real-time dashboard',
-      desc: 'Watch your PRs being analyzed live. Get DORA metrics, Quality Scores, and trend charts.',
-    },
-  ];
+  if (step === 'install') {
+    return <InstallStep
+      user={user}
+      checking={checking}
+      pollCount={pollCount}
+      onInstall={handleInstallClick}
+      onLogout={logout}
+    />;
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
-      {/* Background glows */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-indigo-900/20 blur-[120px] rounded-full" />
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-emerald-900/15 blur-[100px] rounded-full" />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-emerald-900/10 blur-[100px] rounded-full" />
       </div>
 
       <div className="relative w-full max-w-2xl mx-4">
@@ -92,7 +107,6 @@ export default function Onboarding() {
         >
           {/* Header */}
           <div className="text-center mb-10">
-            {/* Avatar + welcome */}
             {user?.avatar_url && (
               <motion.img
                 initial={{ scale: 0, opacity: 0 }}
@@ -109,7 +123,7 @@ export default function Onboarding() {
               transition={{ delay: 0.15 }}
               className="text-3xl font-semibold text-white mb-2"
             >
-              Welcome, <span className="text-indigo-400">{user?.login || 'there'}</span>!
+              How will you use Sentra?
             </motion.h1>
             <motion.p
               initial={{ opacity: 0, y: 8 }}
@@ -117,37 +131,182 @@ export default function Onboarding() {
               transition={{ delay: 0.2 }}
               className="text-white/50 text-base max-w-md mx-auto"
             >
-              One last step — install the Sentra GitHub App to allow AI analysis on your repositories.
+              Choose how you'd like to set up your workspace.
             </motion.p>
           </div>
 
-          {/* Steps */}
+          {/* Selection Cards */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8"
+            className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6"
           >
-            {steps.map((step, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 + i * 0.1 }}
-                className="bg-white/[0.03] border border-white/[0.07] rounded-xl p-5"
-              >
-                <span className="text-2xl mb-3 block">{step.icon}</span>
-                <h3 className="text-sm font-medium text-white mb-1">{step.title}</h3>
-                <p className="text-xs text-white/40 leading-relaxed">{step.desc}</p>
-              </motion.div>
-            ))}
+            {/* Personal Card */}
+            <motion.button
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setSelected('personal')}
+              className={`relative p-6 rounded-2xl border text-left transition-all duration-200 ${
+                selected === 'personal'
+                  ? 'bg-indigo-500/[0.08] border-indigo-500/40 shadow-lg shadow-indigo-500/10'
+                  : 'bg-white/[0.03] border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04]'
+              }`}
+            >
+              {selected === 'personal' && (
+                <motion.div
+                  layoutId="selection-glow"
+                  className="absolute inset-0 rounded-2xl bg-indigo-500/[0.05]"
+                  transition={{ type: 'spring', duration: 0.4 }}
+                />
+              )}
+              <div className="relative">
+                <div className={`size-12 rounded-xl flex items-center justify-center mb-4 ${
+                  selected === 'personal'
+                    ? 'bg-indigo-500/20 border border-indigo-500/30'
+                    : 'bg-white/[0.05] border border-white/[0.08]'
+                }`}>
+                  <User className={`size-6 ${selected === 'personal' ? 'text-indigo-400' : 'text-zinc-400'}`} />
+                </div>
+                <h3 className="text-lg font-semibold text-white mb-1">Just for me</h3>
+                <p className="text-sm text-zinc-500 leading-relaxed">
+                  Personal code analysis and quality tracking for your own repositories and contributions.
+                </p>
+              </div>
+            </motion.button>
+
+            {/* Company Card */}
+            <motion.button
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setSelected('company')}
+              className={`relative p-6 rounded-2xl border text-left transition-all duration-200 ${
+                selected === 'company'
+                  ? 'bg-indigo-500/[0.08] border-indigo-500/40 shadow-lg shadow-indigo-500/10'
+                  : 'bg-white/[0.03] border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04]'
+              }`}
+            >
+              {selected === 'company' && (
+                <motion.div
+                  layoutId="selection-glow"
+                  className="absolute inset-0 rounded-2xl bg-indigo-500/[0.05]"
+                  transition={{ type: 'spring', duration: 0.4 }}
+                />
+              )}
+              <div className="relative">
+                <div className={`size-12 rounded-xl flex items-center justify-center mb-4 ${
+                  selected === 'company'
+                    ? 'bg-indigo-500/20 border border-indigo-500/30'
+                    : 'bg-white/[0.05] border border-white/[0.08]'
+                }`}>
+                  <Building2 className={`size-6 ${selected === 'company' ? 'text-indigo-400' : 'text-zinc-400'}`} />
+                </div>
+                <h3 className="text-lg font-semibold text-white mb-1">With my team</h3>
+                <p className="text-sm text-zinc-500 leading-relaxed">
+                  Collaborate with your engineering team. Shared dashboards, leaderboards, and org-wide policies.
+                </p>
+              </div>
+            </motion.button>
           </motion.div>
 
-          {/* Main card with CTA */}
+          {/* Org Name Input (shown when company selected) */}
+          <AnimatedOrgInput visible={selected === 'company'} value={orgName} onChange={setOrgName} />
+
+          {/* Continue Button */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="text-center mt-6"
+          >
+            <button
+              onClick={handleSubmitWorkspace}
+              disabled={!selected || submitting || (selected === 'company' && !orgName.trim())}
+              className="inline-flex items-center gap-2.5 px-7 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-xl transition-all duration-150 active:scale-[0.97] shadow-lg shadow-indigo-600/20 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-indigo-600"
+            >
+              {submitting ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight className="size-4" />
+                </>
+              )}
+            </button>
+          </motion.div>
+
+          {/* Sign out */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.7 }}
+            className="text-center mt-5"
+          >
+            <button
+              onClick={logout}
+              className="text-xs text-white/20 hover:text-white/40 transition-colors"
+            >
+              Sign out
+            </button>
+          </motion.div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
+function AnimatedOrgInput({ visible, value, onChange }) {
+  if (!visible) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
+      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+      className="overflow-hidden"
+    >
+      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+        <label className="block text-sm font-medium text-zinc-400 mb-2">
+          Organization name
+        </label>
+        <input
+          type="text"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="e.g. Acme Corp"
+          className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500/50 focus:border-indigo-500/40 transition-all"
+          autoFocus
+        />
+      </div>
+    </motion.div>
+  );
+}
+
+function InstallStep({ user, checking, pollCount, onInstall, onLogout }) {
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-indigo-900/20 blur-[120px] rounded-full" />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-emerald-900/15 blur-[100px] rounded-full" />
+      </div>
+
+      <div className="relative w-full max-w-lg mx-4">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+        >
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
+            transition={{ delay: 0.2 }}
             className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-8 text-center"
           >
             {/* Animated ring */}
@@ -167,25 +326,20 @@ export default function Onboarding() {
               Choose which repositories to grant Sentra access to. You can change this any time from your GitHub settings.
             </p>
 
-            {/* Install button */}
             <button
-              id="install-app-btn"
-              onClick={handleInstallClick}
+              onClick={onInstall}
               className="inline-flex items-center gap-2.5 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-xl transition-all duration-150 active:scale-[0.97] shadow-lg shadow-indigo-600/20"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2v10m0 0l-3-3m3 3l3-3M3 17l1.5 2.5a1 1 0 001.7 0L8 17H3z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              </svg>
+              <ArrowRight className="size-4" />
               Install Sentra GitHub App
             </button>
 
-            {/* Status indicator */}
             <div className="mt-6 flex items-center justify-center gap-2">
               {checking || pollCount > 0 ? (
                 <>
                   <div className="size-1.5 rounded-full bg-indigo-400 animate-pulse" />
                   <p className="text-xs text-white/30">
-                    {checking ? 'Waiting for installation…' : `Checking for installation… (${pollCount})`}
+                    {checking ? 'Waiting for installation...' : `Checking for installation... (${pollCount})`}
                   </p>
                 </>
               ) : (
@@ -196,7 +350,6 @@ export default function Onboarding() {
             </div>
           </motion.div>
 
-          {/* Sign out link */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -204,7 +357,7 @@ export default function Onboarding() {
             className="text-center mt-5"
           >
             <button
-              onClick={logout}
+              onClick={onLogout}
               className="text-xs text-white/20 hover:text-white/40 transition-colors"
             >
               Sign out
