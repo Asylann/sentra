@@ -48,5 +48,18 @@ class RAGContextBuilder:
         """
         org_xml = cls.build_organization_rules_xml(policies)
         dev_xml = cls.build_developer_profile_xml(developer_metrics)
-        
-        return f"{org_xml}\n\n{dev_xml}"
+
+        severity_guide = (
+            "<severity_definitions>\n"
+            "Use the following strict definitions when assigning severity. Do NOT inflate severity.\n"
+            "- CRITICAL: Exploitable security vulnerability with direct impact (e.g. RCE, SQLi, auth bypass, hardcoded secret with active scope).\n"
+            "- HIGH: Security weakness requiring immediate attention (e.g. missing auth check, SSRF, insecure deserialization, path traversal).\n"
+            "- MEDIUM: Non-trivial code correctness or architectural issue (e.g. race condition, unchecked error that causes data loss, unsafe dependency).\n"
+            "- LOW: Minor code quality issue that degrades maintainability but has no runtime impact (e.g. unclear variable name, missing edge-case handling, redundant code).\n"
+            "- INFO: Purely cosmetic — typos, whitespace, formatting, outdated comments, stale TODO. Assign INFO for anything that has zero functional or security impact.\n"
+            "IMPORTANT: Typos, misspellings, formatting issues, broken links, and license text errors MUST be INFO. "
+            "Never assign LOW or above for content-only changes with no code execution path.\n"
+            "</severity_definitions>"
+        )
+
+        return f"{severity_guide}\n\n{org_xml}\n\n{dev_xml}"
