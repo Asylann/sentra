@@ -200,7 +200,7 @@ function InviteModal({ orgId, onClose, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    if (!email.trim() && !githubLogin.trim()) return;
     setLoading(true);
     setError('');
     try {
@@ -284,7 +284,7 @@ function InviteModal({ orgId, onClose, onSuccess }) {
               <motion.form key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                    Email address <span className="text-rose-400">*</span>
+                    Email address <span className="text-zinc-500 font-normal">(or use GitHub username below)</span>
                   </label>
                   <div className="relative">
                     <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
@@ -294,7 +294,6 @@ function InviteModal({ orgId, onClose, onSuccess }) {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="developer@company.com"
-                      required
                       className="w-full pl-9 pr-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/60 focus:bg-white/[0.06] transition-all"
                     />
                   </div>
@@ -303,7 +302,7 @@ function InviteModal({ orgId, onClose, onSuccess }) {
                 <div>
                   <label className="block text-xs font-medium text-zinc-400 mb-1.5">
                     GitHub username{' '}
-                    <span className="text-zinc-600 font-normal">(optional)</span>
+                    <span className="text-zinc-600 font-normal">(required if no email)</span>
                   </label>
                   <div className="relative">
                     <GitBranch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
@@ -341,7 +340,7 @@ function InviteModal({ orgId, onClose, onSuccess }) {
                   </button>
                   <button
                     type="submit"
-                    disabled={loading || !email.trim()}
+                    disabled={loading || (!email.trim() && !githubLogin.trim())}
                     id="send-invite-btn"
                     className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium bg-indigo-500 hover:bg-indigo-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/25"
                   >

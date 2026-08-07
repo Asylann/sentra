@@ -123,6 +123,7 @@ func (s *Service) ExchangeCodeForToken(ctx context.Context, code string) (string
 }
 
 // FetchGitHubUser calls the GitHub /user endpoint to retrieve the authenticated user's profile.
+// If the public email is hidden, it falls back to /user/emails to get the primary verified email.
 func (s *Service) FetchGitHubUser(ctx context.Context, accessToken string) (*GitHubUser, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user", nil)
 	if err != nil {
@@ -150,7 +151,57 @@ func (s *Service) FetchGitHubUser(ctx context.Context, accessToken string) (*Git
 		return nil, fmt.Errorf("github user has empty login")
 	}
 
+	// Many GitHub users set their email to private, so /user returns email:""
+	// Fall back to /user/emails (requires user:email scope, which we request)
+	if user.Email == "" {
+		if primary, err := s.fetchPrimaryEmail(ctx, accessToken); err == nil && primary != "" {
+			user.Email = primary
+		}
+	}
+
 	return &user, nil
+}
+
+// fetchPrimaryEmail calls GET /user/emails and returns the primary verified email address.
+func (s *Service) fetchPrimaryEmail(ctx context.Context, accessToken string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/emails", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("github emails API returned status %d", resp.StatusCode)
+	}
+
+	var emails []struct {
+		Email    string `json:"email"`
+		Primary  bool   `json:"primary"`
+		Verified bool   `json:"verified"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&emails); err != nil {
+		return "", err
+	}
+
+	// Prefer primary+verified; fall back to just primary; then just verified
+	var fallback string
+	for _, e := range emails {
+		if e.Primary && e.Verified {
+			return e.Email, nil
+		}
+		if e.Primary && fallback == "" {
+			fallback = e.Email
+		}
+	}
+	return fallback, nil
 }
 
 // UpsertUser inserts or updates the user record in the database.
