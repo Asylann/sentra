@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/usena/sentra/api-gateway/internal/auth"
 	"github.com/usena/sentra/api-gateway/internal/db"
 )
@@ -113,11 +114,11 @@ func (h *Handler) SwitchOrganization(c *gin.Context) {
 		return
 	}
 
-	err := h.Queries.SetUserCurrentOrg(c, db.SetUserCurrentOrgParams{
-		CurrentOrgID: &req.OrgID,
+	switchErr := h.Queries.SetUserCurrentOrg(c, db.SetUserCurrentOrgParams{
+		CurrentOrgID: pgtype.Int8{Int64: req.OrgID, Valid: true},
 		ID:           userID,
 	})
-	if err != nil {
+	if switchErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to switch workspace"})
 		return
 	}

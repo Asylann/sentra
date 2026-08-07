@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/usena/sentra/api-gateway/internal/auth"
 	"github.com/usena/sentra/api-gateway/internal/db"
 )
@@ -31,16 +32,12 @@ func (h *Handler) GetMyInvites(c *gin.Context) {
 		return
 	}
 
-	email := ""
-	if user.Email != nil {
-		email = *user.Email
-	}
-	if email == "" {
+	if !user.Email.Valid || user.Email.String == "" {
 		c.JSON(http.StatusOK, gin.H{"data": []any{}})
 		return
 	}
 
-	invites, err := h.Queries.GetUserPendingInvites(c, email)
+	invites, err := h.Queries.GetUserPendingInvites(c, user.Email.String)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch invites"})
 		return
@@ -117,7 +114,7 @@ func (h *Handler) RespondToInvite(c *gin.Context) {
 		}
 
 		_ = h.Queries.SetUserCurrentOrg(c, db.SetUserCurrentOrgParams{
-			CurrentOrgID: &invite.OrgID,
+			CurrentOrgID: pgtype.Int8{Int64: invite.OrgID, Valid: true},
 			ID:           userID,
 		})
 	}
@@ -148,9 +145,9 @@ func (h *Handler) CreateInvite(c *gin.Context) {
 		return
 	}
 
-	var ghLogin *string
+	ghLogin := pgtype.Text{}
 	if req.GitHubLogin != "" {
-		ghLogin = &req.GitHubLogin
+		ghLogin = pgtype.Text{String: req.GitHubLogin, Valid: true}
 	}
 
 	id, err := h.Queries.CreateInvite(c, db.CreateInviteParams{
