@@ -58,7 +58,17 @@ func (h *Handler) GetMyInvites(c *gin.Context) {
 			for _, inv := range byLogin {
 				if _, ok := seen[inv.ID]; !ok {
 					seen[inv.ID] = struct{}{}
-					combined = append(combined, inv)
+					combined = append(combined, db.GetUserPendingInvitesRow{
+						ID:             inv.ID,
+						OrgID:          inv.OrgID,
+						TargetEmail:    inv.TargetEmail,
+						Status:         inv.Status,
+						CreatedAt:      inv.CreatedAt,
+						OrgLogin:       inv.OrgLogin,
+						OrgDisplayName: inv.OrgDisplayName,
+						OrgAvatarUrl:   inv.OrgAvatarUrl,
+						InviterLogin:   inv.InviterLogin,
+					})
 				}
 			}
 		}

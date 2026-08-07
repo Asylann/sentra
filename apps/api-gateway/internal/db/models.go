@@ -138,6 +138,7 @@ type Organization struct {
 	IsActive       bool   `json:"is_active"`
 	// Organization-wide default Quality Score threshold (0-100). PRs below this score receive conclusion=failure from the Check Runs API, blocking the Merge button. Overridable per repository in repository_policies.
 	QualityGateThreshold int32              `json:"quality_gate_threshold"`
+	WorkspaceType        string             `json:"workspace_type"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 }
@@ -411,23 +412,6 @@ type WebhookPayload struct {
 // =============================================================================
 // B2B Multi-Tenancy Models (Phase: B2B SaaS Pivot)
 // =============================================================================
-
-// SaaS organizations (both personal and company workspaces).
-type Organization struct {
-	ID                   int64              `json:"id"`
-	GithubID             int64              `json:"github_id"`
-	Login                string             `json:"login"`
-	DisplayName          pgtype.Text        `json:"display_name"`
-	AvatarUrl            pgtype.Text        `json:"avatar_url"`
-	Type                 string             `json:"type"`
-	InstallationID       int64              `json:"installation_id"`
-	PlanTier             string             `json:"plan_tier"`
-	IsActive             bool               `json:"is_active"`
-	QualityGateThreshold int32              `json:"quality_gate_threshold"`
-	WorkspaceType        string             `json:"workspace_type"`
-	CreatedAt            pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
-}
 
 // M2M: users within an organization workspace.
 type OrganizationUser struct {
