@@ -97,27 +97,26 @@ class GitHubCheckRunsAPI:
             description = finding.get('description', '')
             suggested_fix = finding.get('suggested_fix', '').strip()
 
-            severity_badge = {
-                "CRITICAL": "🔴 **CRITICAL**",
-                "HIGH":     "🟠 **HIGH**",
-                "MEDIUM":   "🟡 **MEDIUM**",
-                "LOW":      "🔵 **LOW**",
-                "INFO":     "⚪ **INFO**",
-            }.get(severity, "⚪ **INFO**")
+            severity_label = f"**[{severity}]**" + (f" `{category}`" if category else "")
 
             message_parts = [
-                f"{severity_badge}" + (f" · `{category}`" if category else ""),
+                severity_label,
                 "",
                 description,
             ]
 
             if suggested_fix:
-                # Detect if the fix already contains a fenced code block; if so render as-is.
-                # Otherwise wrap in a diff block for syntax highlighting.
-                if "```" in suggested_fix:
-                    message_parts += ["", "**Suggested Fix**", "", suggested_fix]
-                else:
-                    message_parts += ["", "**Suggested Fix**", "", f"```diff\n{suggested_fix}\n```"]
+                # Strip any outer fenced block the LLM may have added so we always
+                # control the fence language. Re-wrap as a diff block for syntax highlighting.
+                inner = suggested_fix
+                if inner.startswith("```"):
+                    # Remove the opening fence line and closing fence
+                    lines = inner.splitlines()
+                    closing = next((i for i in range(len(lines) - 1, 0, -1) if lines[i].strip() == "```"), None)
+                    if closing:
+                        inner = "\n".join(lines[1:closing])
+
+                message_parts += ["", "**Suggested Fix**", "", f"```diff\n{inner}\n```"]
 
             annotations.append({
                 "path": finding.get('file_path', 'unknown_file'),

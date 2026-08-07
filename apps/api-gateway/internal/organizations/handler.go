@@ -26,34 +26,50 @@ func (h *Handler) GetOrgPRs(c *gin.Context) {
 		return
 	}
 
-	authorLogin := c.Query("author")
-	limit := int32(50)
+	// QueryArray returns all values for repeated query params: ?author=a&author=b
+	authorLogins := c.QueryArray("author")
+	limit := int32(200)
 
-	var prs interface{}
-	if authorLogin != "" {
-		result, err := h.Queries.GetOrgPullRequestsByAuthor(c, db.GetOrgPullRequestsByAuthorParams{
-			OrganizationID: orgID,
-			Limit:          limit,
-			AuthorLogin:    authorLogin,
-		})
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch PRs"})
-			return
+	if len(authorLogins) > 0 {
+		// Fetch per-author and merge; avoids needing a variadic SQL IN clause
+		seen := make(map[int64]struct{})
+		var merged []db.GetOrgPullRequestsRow
+		for _, login := range authorLogins {
+			result, err := h.Queries.GetOrgPullRequestsByAuthor(c, db.GetOrgPullRequestsByAuthorParams{
+				OrganizationID: orgID,
+				Limit:          limit,
+				AuthorLogin:    login,
+			})
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch PRs"})
+				return
+			}
+			for _, pr := range result {
+				if _, dup := seen[pr.ID]; !dup {
+					seen[pr.ID] = struct{}{}
+					merged = append(merged, pr)
+				}
+			}
 		}
-		prs = result
-	} else {
-		result, err := h.Queries.GetOrgPullRequests(c, db.GetOrgPullRequestsParams{
-			OrganizationID: orgID,
-			Limit:          limit,
-		})
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch PRs"})
-			return
+		if merged == nil {
+			merged = []db.GetOrgPullRequestsRow{}
 		}
-		prs = result
+		c.JSON(http.StatusOK, gin.H{"data": merged})
+		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": prs})
+	result, err := h.Queries.GetOrgPullRequests(c, db.GetOrgPullRequestsParams{
+		OrganizationID: orgID,
+		Limit:          limit,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch PRs"})
+		return
+	}
+	if result == nil {
+		result = []db.GetOrgPullRequestsRow{}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": result})
 }
 
 // GetLeaderboard handles GET /api/v1/orgs/:id/leaderboard

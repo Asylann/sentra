@@ -58,7 +58,15 @@ class BedrockClaudeClient:
         tool_definition = {
             "toolSpec": {
                 "name": "publish_code_review_findings",
-                "description": "Publish a list of security vulnerabilities, architectural flaws, and code quality issues found in the pull request.",
+                "description": (
+                    "Publish findings from a thorough code review. Review ALL file types in the diff: "
+                    "source code, Dockerfiles, docker-compose files, CI/CD YAML, shell scripts, nginx configs, and documentation. "
+                    "For infrastructure files (Dockerfile, docker-compose, .yml pipelines, nginx.conf, Makefile, .sh), "
+                    "carefully check every instruction for truncated paths, misspelled commands, invalid port numbers, "
+                    "wrong image tags, or missing config keys — these are MEDIUM or HIGH severity, NOT INFO, because they break builds or deployments. "
+                    "For documentation files (README, LICENSE, .md), report typos and formatting errors as INFO. "
+                    "Never skip findings in infrastructure/config files by labelling them cosmetic."
+                ),
                 "inputSchema": {
                     "json": {
                         "type": "object",
@@ -70,11 +78,36 @@ class BedrockClaudeClient:
                                     "properties": {
                                         "file_path": {"type": "string"},
                                         "line_start": {"type": "integer"},
-                                        "category": {"type": "string", "enum": ["Security", "Architecture", "Complexity", "Bug", "Style"]},
-                                        "severity": {"type": "string", "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]},
+                                        "category": {"type": "string", "enum": ["Security", "Architecture", "Infrastructure", "Bug", "Style"]},
+                                        "severity": {
+                                            "type": "string",
+                                            "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"],
+                                            "description": (
+                                                "CRITICAL=exploitable security vuln; "
+                                                "HIGH=security weakness or infra failure blocking deployment; "
+                                                "MEDIUM=functional breakage in executable/infra files (wrong paths, invalid ports, broken commands, misconfigured compose services); "
+                                                "LOW=code quality issue with no runtime impact; "
+                                                "INFO=cosmetic only in documentation files (typos in README/LICENSE/md). "
+                                                "NEVER use INFO for errors in Dockerfile, docker-compose, YAML pipelines, shell scripts, or nginx configs."
+                                            )
+                                        },
                                         "title": {"type": "string", "description": "Short, descriptive title of the issue"},
-                                        "description": {"type": "string", "description": "Detailed explanation of why this is an issue and how it violates policies"},
-                                        "suggested_fix": {"type": "string", "description": "Markdown formatted code block showing the corrected code"}
+                                        "description": {"type": "string", "description": "Explain concretely what breaks: which command fails, which port is invalid, which path does not exist, what the runtime consequence is"},
+                                        "suggested_fix": {
+                                            "type": "string",
+                                            "description": (
+                                                "A unified diff patch showing ONLY the changed lines. "
+                                                "Format exactly like this — no code fences, no markdown, plain text only:\n"
+                                                "-old line as it appears in the file\n"
+                                                "+new corrected line\n"
+                                                "Rules: the '-' line must be copied EXACTLY from the file (same spacing, same characters). "
+                                                "The '+' line must show the corrected version. "
+                                                "Do NOT output identical text on both '-' and '+' lines. "
+                                                "Do NOT wrap in triple backticks. "
+                                                "Do NOT invent lines that do not exist in the diff. "
+                                                "Example for a typo fix: -FROM nginx:1.25-alp\\n+FROM nginx:1.25-alpine"
+                                            )
+                                        }
                                     },
                                     "required": ["file_path", "line_start", "category", "severity", "title", "description", "suggested_fix"]
                                 }
