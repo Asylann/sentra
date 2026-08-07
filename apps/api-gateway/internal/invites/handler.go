@@ -32,22 +32,43 @@ func (h *Handler) GetMyInvites(c *gin.Context) {
 		return
 	}
 
-	if !user.Email.Valid || user.Email.String == "" {
-		c.JSON(http.StatusOK, gin.H{"data": []any{}})
-		return
+	// Query by email first (if present), then also by GitHub login — deduplicated by invite ID.
+	seen := map[int64]struct{}{}
+	var combined []db.GetUserPendingInvitesRow
+
+	if user.Email.Valid && user.Email.String != "" {
+		byEmail, err := h.Queries.GetUserPendingInvites(c, user.Email.String)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch invites"})
+			return
+		}
+		for _, inv := range byEmail {
+			if _, ok := seen[inv.ID]; !ok {
+				seen[inv.ID] = struct{}{}
+				combined = append(combined, inv)
+			}
+		}
 	}
 
-	invites, err := h.Queries.GetUserPendingInvites(c, user.Email.String)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch invites"})
-		return
+	// Also look up by GitHub login in case the invite was sent with the login field.
+	if user.Login != "" {
+		loginText := pgtype.Text{String: user.Login, Valid: true}
+		byLogin, err := h.Queries.GetUserPendingInvitesByLogin(c, loginText)
+		if err == nil { // best-effort; don't fail if query doesn't exist yet
+			for _, inv := range byLogin {
+				if _, ok := seen[inv.ID]; !ok {
+					seen[inv.ID] = struct{}{}
+					combined = append(combined, inv)
+				}
+			}
+		}
 	}
 
-	if invites == nil {
-		invites = []db.GetUserPendingInvitesRow{}
+	if combined == nil {
+		combined = []db.GetUserPendingInvitesRow{}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": invites})
+	c.JSON(http.StatusOK, gin.H{"data": combined})
 }
 
 // RespondToInvite handles POST /api/v1/invites/:id/respond
@@ -137,11 +158,17 @@ func (h *Handler) CreateInvite(c *gin.Context) {
 	}
 
 	var req struct {
-		Email       string `json:"email" binding:"required"`
+		Email       string `json:"email"`
 		GitHubLogin string `json:"github_login"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "email is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	// Require at least one of email or github_login
+	if req.Email == "" && req.GitHubLogin == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email or github_login is required"})
 		return
 	}
 
@@ -150,10 +177,25 @@ func (h *Handler) CreateInvite(c *gin.Context) {
 		ghLogin = pgtype.Text{String: req.GitHubLogin, Valid: true}
 	}
 
+	// If email is empty but github_login is given, try to resolve the email from the DB.
+	// This lets you invite teammates by GitHub username alone.
+	targetEmail := req.Email
+	if targetEmail == "" && req.GitHubLogin != "" {
+		if lookedUp, lookupErr := h.Queries.GetUserByLogin(c, req.GitHubLogin); lookupErr == nil {
+			if lookedUp.Email.Valid && lookedUp.Email.String != "" {
+				targetEmail = lookedUp.Email.String
+			}
+		}
+		// If still empty, use a stable synthetic placeholder
+		if targetEmail == "" {
+			targetEmail = "invite-by-login@" + req.GitHubLogin + ".github"
+		}
+	}
+
 	id, err := h.Queries.CreateInvite(c, db.CreateInviteParams{
 		OrgID:             orgID,
 		InviterID:         userID,
-		TargetEmail:       req.Email,
+		TargetEmail:       targetEmail,
 		TargetGithubLogin: ghLogin,
 	})
 	if err != nil {

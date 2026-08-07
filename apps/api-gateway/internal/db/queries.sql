@@ -417,3 +417,22 @@ FROM organization_invites i
 JOIN users u ON u.id = i.inviter_id
 WHERE i.org_id = $1 AND i.status = 'pending'
 ORDER BY i.created_at DESC;
+
+-- name: GetUserPendingInvitesByLogin :many
+-- Fetches pending invites by GitHub login (fallback when user email is not stored).
+SELECT
+    i.id, i.org_id, i.target_email, i.status, i.created_at,
+    o.login AS org_login, o.display_name AS org_display_name, o.avatar_url AS org_avatar_url,
+    u.login AS inviter_login
+FROM organization_invites i
+JOIN organizations o ON o.id = i.org_id
+JOIN users u ON u.id = i.inviter_id
+WHERE i.target_github_login = $1 AND i.status = 'pending'
+ORDER BY i.created_at DESC;
+
+-- name: GetUserByLogin :one
+-- Fetches a user by their GitHub login.
+SELECT id, github_id, login, name, email, avatar_url, installation_id
+FROM users
+WHERE login = $1
+LIMIT 1;

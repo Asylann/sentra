@@ -1190,3 +1190,63 @@ func (q *Queries) GetOrgPendingInvites(ctx context.Context, orgID int64) ([]GetO
 	}
 	return items, rows.Err()
 }
+
+const getUserPendingInvitesByLogin = `-- name: GetUserPendingInvitesByLogin :many
+SELECT
+    i.id, i.org_id, i.target_email, i.status, i.created_at,
+    o.login AS org_login, o.display_name AS org_display_name, o.avatar_url AS org_avatar_url,
+    u.login AS inviter_login
+FROM organization_invites i
+JOIN organizations o ON o.id = i.org_id
+JOIN users u ON u.id = i.inviter_id
+WHERE i.target_github_login = $1 AND i.status = 'pending'
+ORDER BY i.created_at DESC
+`
+
+// Fetches pending invites by GitHub login (fallback when user email is not stored).
+func (q *Queries) GetUserPendingInvitesByLogin(ctx context.Context, targetGithubLogin pgtype.Text) ([]GetUserPendingInvitesRow, error) {
+	rows, err := q.db.Query(ctx, getUserPendingInvitesByLogin, targetGithubLogin)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserPendingInvitesRow
+	for rows.Next() {
+		var i GetUserPendingInvitesRow
+		if err := rows.Scan(
+			&i.ID, &i.OrgID, &i.TargetEmail, &i.Status, &i.CreatedAt,
+			&i.OrgLogin, &i.OrgDisplayName, &i.OrgAvatarUrl, &i.InviterLogin,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, rows.Err()
+}
+
+const getUserByLogin = `-- name: GetUserByLogin :one
+SELECT id, github_id, login, name, email, avatar_url, installation_id
+FROM users
+WHERE login = $1
+LIMIT 1
+`
+
+type GetUserByLoginRow struct {
+	ID             int64       `json:"id"`
+	GithubID       int64       `json:"github_id"`
+	Login          string      `json:"login"`
+	Name           pgtype.Text `json:"name"`
+	Email          pgtype.Text `json:"email"`
+	AvatarUrl      pgtype.Text `json:"avatar_url"`
+	InstallationID pgtype.Int8 `json:"installation_id"`
+}
+
+// Fetches a user by their GitHub login.
+func (q *Queries) GetUserByLogin(ctx context.Context, login string) (GetUserByLoginRow, error) {
+	row := q.db.QueryRow(ctx, getUserByLogin, login)
+	var i GetUserByLoginRow
+	err := row.Scan(
+		&i.ID, &i.GithubID, &i.Login, &i.Name, &i.Email, &i.AvatarUrl, &i.InstallationID,
+	)
+	return i, err
+}
