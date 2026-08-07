@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { motion, useScroll, useTransform, useSpring, useInView, useMotionValueEvent } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { FileCode, ShieldAlert, Code2, ArrowRight, GitPullRequest, ShieldCheck, Terminal, Zap, Eye, Lock, Cpu, BarChart3, GitMerge } from 'lucide-react';
+import { FileCode, ShieldAlert, Code2, ArrowRight, GitPullRequest, ShieldCheck, Terminal, Zap, Eye, Lock, Cpu, BarChart3, GitMerge, Building2, Users, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 function ParallaxLayer({ children, speed = 0.5, className = '' }) {
@@ -94,6 +94,165 @@ function AnimatedCounter({ target, suffix = '' }) {
   }, [isInView, target]);
 
   return <span ref={ref}>{count.toLocaleString()}{suffix}</span>;
+}
+
+function B2BTeamSection() {
+  return (
+    <section className="py-32 px-4 relative overflow-hidden border-t border-white/[0.04] bg-[#020202]">
+      {/* Background gradients */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none" />
+      
+      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
+        
+        {/* Left: Text Content */}
+        <div className="flex-1 text-center lg:text-left z-10">
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="text-sm font-medium text-indigo-400 uppercase tracking-widest mb-4"
+          >
+            For Engineering Teams
+          </motion.p>
+          <motion.h2
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="text-4xl md:text-5xl font-bold tracking-tight text-white mb-6"
+          >
+            Build great software <br className="hidden lg:block"/>together.
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-lg text-gray-400 leading-relaxed max-w-xl mx-auto lg:mx-0 mb-10"
+          >
+            Invite your developers into a secure company workspace. Sentra AI reviews every pull request, tracks quality scores across your repositories, and surfaces team-wide insights — all in one centralized dashboard.
+          </motion.p>
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="flex flex-col sm:flex-row gap-4 items-center justify-center lg:justify-start"
+          >
+            <div className="flex -space-x-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className={`w-10 h-10 rounded-full border-2 border-[#020202] flex items-center justify-center bg-gradient-to-br ${
+                  i === 1 ? 'from-purple-500 to-indigo-500' : 
+                  i === 2 ? 'from-emerald-500 to-teal-500' :
+                  i === 3 ? 'from-rose-500 to-orange-500' : 'from-blue-500 to-cyan-500'
+                }`}>
+                  <Users className="w-4 h-4 text-white/90" />
+                </div>
+              ))}
+            </div>
+            <p className="text-sm text-gray-500 font-medium">Built for teams of 5 to 5,000</p>
+          </motion.div>
+        </div>
+
+        {/* Right: Animated Visual */}
+        <div className="flex-1 w-full max-w-lg relative z-10 perspective-1000">
+          <PerspectiveCard delay={0.2}>
+            <div className="relative aspect-[4/3] bg-white/[0.02] border border-white/[0.08] rounded-2xl p-6 overflow-hidden flex items-center justify-center shadow-2xl shadow-indigo-500/5">
+              
+              {/* SVG Connecting Lines */}
+              <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ filter: 'drop-shadow(0 0 8px rgba(99,102,241,0.2))' }}>
+                {[
+                  { start: [20, 20], end: [50, 50] },
+                  { start: [20, 80], end: [50, 50] },
+                  { start: [80, 20], end: [50, 50] },
+                  { start: [80, 80], end: [50, 50] }
+                ].map((path, i) => (
+                  <g key={i}>
+                    {/* Base faint line */}
+                    <path
+                      d={`M ${path.start[0]}% ${path.start[1]}% L ${path.end[0]}% ${path.end[1]}%`}
+                      stroke="rgba(255,255,255,0.05)"
+                      strokeWidth="2"
+                      fill="none"
+                    />
+                    {/* Animated moving pulse */}
+                    <motion.circle
+                      r="3"
+                      fill="#818cf8"
+                      initial={{ cx: `${path.start[0]}%`, cy: `${path.start[1]}%`, opacity: 0 }}
+                      animate={{ 
+                        cx: [`${path.start[0]}%`, `${path.end[0]}%`], 
+                        cy: [`${path.start[1]}%`, `${path.end[1]}%`],
+                        opacity: [0, 1, 1, 0] 
+                      }}
+                      transition={{ 
+                        duration: 2, 
+                        repeat: Infinity, 
+                        delay: i * 0.7,
+                        ease: "easeInOut"
+                      }}
+                    />
+                  </g>
+                ))}
+              </svg>
+
+              {/* Developer Nodes */}
+              {[
+                { top: '20%', left: '20%' },
+                { top: '80%', left: '20%' },
+                { top: '20%', left: '80%' },
+                { top: '80%', left: '80%' }
+              ].map((pos, i) => (
+                <motion.div 
+                  key={i}
+                  initial={{ scale: 0 }}
+                  whileInView={{ scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.4 + (i * 0.1), type: "spring" }}
+                  className="absolute w-12 h-12 -ml-6 -mt-6 bg-[#0a0a0a] border border-white/10 rounded-xl flex items-center justify-center z-10 shadow-lg"
+                  style={{ top: pos.top, left: pos.left }}
+                >
+                  <Code2 className="w-5 h-5 text-gray-400" />
+                </motion.div>
+              ))}
+
+              {/* Center Workspace Node */}
+              <motion.div 
+                initial={{ scale: 0 }}
+                whileInView={{ scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.2, type: "spring" }}
+                className="relative z-20 w-24 h-24 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/40 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-500/20 backdrop-blur-md"
+              >
+                <motion.div
+                  animate={{ scale: [1, 1.05, 1] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <Building2 className="w-10 h-10 text-indigo-400" />
+                </motion.div>
+                
+                {/* Ping rings */}
+                <div className="absolute inset-0 rounded-2xl border border-indigo-400/30 animate-ping" style={{ animationDuration: '3s' }} />
+              </motion.div>
+              
+              {/* Floating Success indicators */}
+              <motion.div 
+                animate={{ y: [-5, 5, -5] }} 
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute top-[35%] right-[35%] bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2 py-1 flex items-center gap-1 backdrop-blur-md z-30"
+              >
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                <span className="text-[10px] text-emerald-300 font-medium tracking-wide uppercase">Merged</span>
+              </motion.div>
+            </div>
+          </PerspectiveCard>
+        </div>
+        
+      </div>
+    </section>
+  );
 }
 
 export default function LandingPage() {
@@ -539,6 +698,9 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+
+        {/* ===== B2B TEAM SECTION ===== */}
+        <B2BTeamSection />
 
         {/* ===== CTA ===== */}
         <section className="py-40 px-4 relative">
