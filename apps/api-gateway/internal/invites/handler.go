@@ -163,3 +163,24 @@ func (h *Handler) CreateInvite(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{"invite_id": id})
 }
+
+// GetOrgPendingInvites handles GET /api/v1/orgs/:id/invites/pending
+func (h *Handler) GetOrgPendingInvites(c *gin.Context) {
+	orgID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid org ID"})
+		return
+	}
+
+	invites, err := h.Queries.GetOrgPendingInvites(c, orgID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch pending invites"})
+		return
+	}
+
+	if invites == nil {
+		invites = []db.GetOrgPendingInvitesRow{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": invites})
+}

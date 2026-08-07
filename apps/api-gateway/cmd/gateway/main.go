@@ -187,6 +187,7 @@ func main() {
 			protected.GET("/orgs/:id/leaderboard", orgsHandler.GetLeaderboard)
 			protected.GET("/orgs/:id/members", orgsHandler.GetOrgMembers)
 			protected.POST("/orgs/:id/invites", invitesHandler.CreateInvite)
+			protected.GET("/orgs/:id/invites/pending", invitesHandler.GetOrgPendingInvites)
 		}
 	}
 
