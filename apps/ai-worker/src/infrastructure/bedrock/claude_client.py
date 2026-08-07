@@ -30,7 +30,7 @@ class BedrockConfig(BaseSettings):
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
     aws_region: str = "us-east-1"
-    bedrock_model_id: str = "anthropic.claude-3-5-haiku-20241022-v1:0"
+    bedrock_model_id: str = "amazon.nova-micro-v1:0"
 
     class Config:
         env_file = ".env"

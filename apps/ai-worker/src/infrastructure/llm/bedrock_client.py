@@ -45,7 +45,7 @@ class BedrockClaudeClient:
             client_kwargs["aws_secret_access_key"] = aws_secret_access_key
             
         self.client = boto3.client("bedrock-runtime", **client_kwargs)
-        self.model_id = "anthropic.claude-3-5-haiku-20241022-v1:0"
+        self.model_id = "amazon.nova-micro-v1:0"
         
         # ThreadPool for isolating blocking boto3 calls from the asyncio loop
         self._executor = ThreadPoolExecutor(max_workers=5)
