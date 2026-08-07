@@ -1,30 +1,30 @@
 """
 AnalyzePullRequestUseCase — Core business orchestrator.
 
-Full pipeline flow (Research4 §"Pipeline", Research1 §3.2):
+Pipeline flow:
   1. Fetch git diff via DiffFetcherProtocol
-  2. Apply multi-stage context pruning (Research3 §"Token Optimization"):
-     - Stage 1: Exclude lock files, binaries, generated code
-     - Stage 2: Strip git metadata headers
-     - Stage 3: AST isolation — extract only changed function/class bodies
+  2. Apply multi-stage context pruning
   3. Query pgvector for developer error history and org policies (RAG)
-  4. Level 1 scan: Shannon entropy + regex (catches secrets in <50ms)
-  5. Build LLM prompt with SYSTEM_AND_TOOLS cache strategy (Research1 §3.4)
-  6. Send to BedrockClaudeClient via LLMClientProtocol
-  7. Validate structured JSON output (Tool Use guarantees schema compliance)
-  8. Compute Quality Score via weighted deduction formula (Research5 §2.2)
-  9. POST GitHub Check Run (in_progress) → PATCH (completed, conclusion)
-  10. Persist findings + metrics to PostgreSQL (for DORA Dashboard)
-
-Depends ONLY on domain Protocols (interfaces). All implementations are injected.
+  4. Send to LLM for structured analysis
+  5. Compute Quality Score
+  6. POST GitHub Check Run with summary + annotation-only findings
+  7. POST GitHub PR Review with ```suggestion fences for auto-fixable findings
+  8. Persist findings + metrics to PostgreSQL
 """
+import logging
+from typing import List
+
 from ...domain.ports.llm_client import LLMClientProtocol
 from ...domain.ports.diff_fetcher import DiffFetcherProtocol
 from ...domain.ports.check_runs_client import CheckRunsClientProtocol
+from ...domain.ports.pr_review_client import PRReviewClientProtocol
 from ...domain.ports.rag_context_provider import RAGContextProviderProtocol
 from ...domain.entities.pull_request import PullRequest
+from ...domain.entities.review_finding import ReviewFinding
 from ..services.context_pruner import ContextPruner
-from ..services.quality_scorer import compute_quality_score, should_block_merge
+from ..services.quality_scorer import QualityScorer
+
+logger = logging.getLogger(__name__)
 
 
 class AnalyzePullRequestUseCase:
@@ -33,11 +33,13 @@ class AnalyzePullRequestUseCase:
         diff_fetcher: DiffFetcherProtocol,
         llm_client: LLMClientProtocol,
         check_runs_client: CheckRunsClientProtocol,
+        pr_review_client: PRReviewClientProtocol | None = None,
         rag_provider: RAGContextProviderProtocol | None = None,
     ) -> None:
         self._diff_fetcher = diff_fetcher
         self._llm_client = llm_client
         self._check_runs = check_runs_client
+        self._pr_review = pr_review_client
         self._pruner = ContextPruner()
         self._rag = rag_provider
 
@@ -59,7 +61,73 @@ class AnalyzePullRequestUseCase:
             diff_content=pruned_diff,
             system_context=system_context,
         )
-        score = compute_quality_score(findings)
-        blocked = should_block_merge(findings, score)
-        # TODO Phase 8: POST check run, PATCH with conclusion
 
+        quality_score, conclusion = QualityScorer.evaluate(
+            [{"severity": f.severity.value} for f in findings]
+        )
+
+        check_run_id = await self._check_runs.create_check_run(
+            repo=pull_request.diff_url.split("/pulls/")[0].split("repos/")[-1]
+            if "/pulls/" in pull_request.diff_url
+            else f"repo/{pull_request.repository_id}",
+            head_sha=pull_request.head_sha,
+        )
+
+        summary = self._build_check_run_summary(findings, quality_score)
+        await self._check_runs.complete_check_run(
+            check_run_id=check_run_id,
+            quality_score=quality_score,
+            findings=findings,
+        )
+
+        if self._pr_review:
+            suggestable = [f for f in findings if f.has_suggestion]
+            if suggestable:
+                await self._pr_review.submit_suggestions(
+                    repo=pull_request.diff_url.split("/pulls/")[0].split("repos/")[-1]
+                    if "/pulls/" in pull_request.diff_url
+                    else f"repo/{pull_request.repository_id}",
+                    pull_number=pull_request.pull_number,
+                    head_sha=pull_request.head_sha,
+                    installation_id=pull_request.installation_id,
+                    findings=suggestable,
+                )
+                logger.info(
+                    "Posted %d suggested change(s) to PR #%d",
+                    len(suggestable),
+                    pull_request.pull_number,
+                )
+
+        logger.info(
+            "Analysis complete for PR #%d: score=%d, conclusion=%s, findings=%d (suggestable=%d)",
+            pull_request.pull_number,
+            quality_score,
+            conclusion,
+            len(findings),
+            len([f for f in findings if f.has_suggestion]),
+        )
+
+    @staticmethod
+    def _build_check_run_summary(findings: List[ReviewFinding], quality_score: int) -> str:
+        by_severity = {}
+        for f in findings:
+            by_severity[f.severity.value] = by_severity.get(f.severity.value, 0) + 1
+
+        lines = [
+            f"## Quality Score: {quality_score}/100\n",
+            "| Severity | Count |",
+            "|----------|-------|",
+        ]
+        for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]:
+            count = by_severity.get(sev, 0)
+            if count > 0:
+                lines.append(f"| {sev} | {count} |")
+
+        suggestable_count = len([f for f in findings if f.has_suggestion])
+        if suggestable_count:
+            lines.append(
+                f"\n> {suggestable_count} finding(s) have auto-fix suggestions "
+                "posted as PR review comments."
+            )
+
+        return "\n".join(lines)

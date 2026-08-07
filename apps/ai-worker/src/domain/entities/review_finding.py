@@ -33,5 +33,10 @@ class ReviewFinding:
     title: str
     description: str
     suggested_fix: str
-    fingerprint: str = ""   # SHA256 for persistent suppression (Research5 §1.2)
+    suggestion_code: str = ""  # Raw replacement code for GitHub's ```suggestion fence
+    fingerprint: str = ""      # SHA256 for persistent suppression (Research5 §1.2)
+
+    @property
+    def has_suggestion(self) -> bool:
+        return bool(self.suggestion_code.strip())
 
