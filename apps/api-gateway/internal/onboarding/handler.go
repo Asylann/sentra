@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/usena/sentra/api-gateway/internal/auth"
 	"github.com/usena/sentra/api-gateway/internal/db"
 )
@@ -72,7 +73,7 @@ func (h *Handler) CompleteOnboarding(c *gin.Context) {
 	}
 
 	err = h.Queries.SetUserCurrentOrg(c, db.SetUserCurrentOrgParams{
-		CurrentOrgID: &orgID,
+		CurrentOrgID: pgtype.Int8{Int64: orgID, Valid: true},
 		ID:           userID,
 	})
 	if err != nil {
@@ -90,9 +91,9 @@ func (h *Handler) createPersonalOrg(c *gin.Context, githubID int64, login string
 	return h.Queries.CreatePersonalOrganization(c, db.CreatePersonalOrganizationParams{
 		GithubID:       githubID,
 		Login:          login + "-personal",
-		DisplayName:    &login,
-		AvatarUrl:      nil,
-		InstallationID: 0,
+		DisplayName:    pgtype.Text{String: login, Valid: true},
+		AvatarUrl:      pgtype.Text{},
+		InstallationID: githubID,
 	})
 }
 
@@ -100,8 +101,8 @@ func (h *Handler) createCompanyOrg(c *gin.Context, githubID int64, login string,
 	return h.Queries.CreateCompanyOrganization(c, db.CreateCompanyOrganizationParams{
 		GithubID:       githubID,
 		Login:          login + "-company",
-		DisplayName:    &name,
-		AvatarUrl:      nil,
-		InstallationID: 0,
+		DisplayName:    pgtype.Text{String: name, Valid: true},
+		AvatarUrl:      pgtype.Text{},
+		InstallationID: githubID,
 	})
 }
