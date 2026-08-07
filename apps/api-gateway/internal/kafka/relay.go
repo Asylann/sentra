@@ -54,6 +54,10 @@ func (r *RelayWorker) processBatch(ctx context.Context) {
 
 	// 2. Publish and update status
 	for _, event := range events {
+		if r.producer == nil {
+			log.Printf("Kafka producer is not initialized. Cannot publish event %v", event.ID)
+			continue
+		}
 		err := r.producer.Publish(event.KafkaTopic, event.AggregateID, event.PayloadProto)
 		if err != nil {
 			log.Printf("Failed to publish outbox event to Kafka, event_id: %v, err: %v", event.ID, err)
