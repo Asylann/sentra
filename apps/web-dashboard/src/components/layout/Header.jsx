@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
+import { useWorkspace } from '../../context/WorkspaceContext';
 import NotificationBell from './NotificationBell';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
 
 export default function Header() {
   const { user, logout } = useAuth();
+  const { isCompanyWorkspace } = useWorkspace();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -40,6 +42,12 @@ export default function Header() {
           <Link to="/dashboard/prs" className="hover:text-white transition-colors">Pull Requests</Link>
           <Link to="/dashboard/leaderboard" className="hover:text-white transition-colors">Leaderboard</Link>
           <Link to="/dashboard/repositories" className="hover:text-white transition-colors">Repositories</Link>
+          {isCompanyWorkspace && (
+            <Link to="/dashboard/team" className="hover:text-white transition-colors flex items-center gap-1">
+              <span className="inline-block size-1.5 rounded-full bg-indigo-500" />
+              Team
+            </Link>
+          )}
           <Link to="/dashboard/settings" className="hover:text-white transition-colors">Settings</Link>
         </div>
 

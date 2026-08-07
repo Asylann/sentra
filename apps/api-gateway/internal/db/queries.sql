@@ -408,3 +408,12 @@ ORDER BY ou.joined_at ASC;
 -- Get user's current org id.
 SELECT current_org_id FROM users WHERE id = $1;
 
+-- name: GetOrgPendingInvites :many
+-- Fetches all pending invites for an organization (used in the TeamView pending panel).
+SELECT
+    i.id, i.target_email, i.target_github_login, i.status, i.created_at,
+    u.login AS inviter_login
+FROM organization_invites i
+JOIN users u ON u.id = i.inviter_id
+WHERE i.org_id = $1 AND i.status = 'pending'
+ORDER BY i.created_at DESC;

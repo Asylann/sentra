@@ -385,6 +385,7 @@ type User struct {
 	GithubAccessToken pgtype.Text `json:"github_access_token"`
 	// GitHub App Installation ID for this user. NULL = App not yet installed. Used to associate incoming webhook events with a specific dashboard user.
 	InstallationID pgtype.Int8        `json:"installation_id"`
+	CurrentOrgID   pgtype.Int8        `json:"current_org_id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
@@ -405,4 +406,45 @@ type WebhookPayload struct {
 	SignatureValid bool               `json:"signature_valid"`
 	ReceivedAt     pgtype.Timestamptz `json:"received_at"`
 	ProcessedAt    pgtype.Timestamptz `json:"processed_at"`
+}
+
+// =============================================================================
+// B2B Multi-Tenancy Models (Phase: B2B SaaS Pivot)
+// =============================================================================
+
+// SaaS organizations (both personal and company workspaces).
+type Organization struct {
+	ID                   int64              `json:"id"`
+	GithubID             int64              `json:"github_id"`
+	Login                string             `json:"login"`
+	DisplayName          pgtype.Text        `json:"display_name"`
+	AvatarUrl            pgtype.Text        `json:"avatar_url"`
+	Type                 string             `json:"type"`
+	InstallationID       int64              `json:"installation_id"`
+	PlanTier             string             `json:"plan_tier"`
+	IsActive             bool               `json:"is_active"`
+	QualityGateThreshold int32              `json:"quality_gate_threshold"`
+	WorkspaceType        string             `json:"workspace_type"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+}
+
+// M2M: users within an organization workspace.
+type OrganizationUser struct {
+	OrgID    int64              `json:"org_id"`
+	UserID   int64              `json:"user_id"`
+	Role     string             `json:"role"`
+	JoinedAt pgtype.Timestamptz `json:"joined_at"`
+}
+
+// Organization invitations sent to developers.
+type OrganizationInvite struct {
+	ID                int64              `json:"id"`
+	OrgID             int64              `json:"org_id"`
+	InviterID         int64              `json:"inviter_id"`
+	TargetEmail       string             `json:"target_email"`
+	TargetGithubLogin pgtype.Text        `json:"target_github_login"`
+	Status            string             `json:"status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }

@@ -15,6 +15,7 @@ import PullRequestsView from './components/dashboard/PullRequestsView';
 import RepositoriesView from './components/dashboard/RepositoriesView';
 import SettingsView from './components/dashboard/SettingsView';
 import LeaderboardView from './components/dashboard/LeaderboardView';
+import TeamView from './components/dashboard/TeamView';
 import Header from './components/layout/Header';
 import LandingPage from './components/landing/LandingPage';
 import SamplesPage from './components/landing/SamplesPage';
@@ -117,6 +118,7 @@ export default function App() {
             <Route path="repositories" element={<RepositoriesView />} />
             <Route path="settings" element={<SettingsView />} />
             <Route path="leaderboard" element={<LeaderboardView />} />
+            <Route path="team" element={<TeamView />} />
           </Route>
 
           {/* Landing Page */}

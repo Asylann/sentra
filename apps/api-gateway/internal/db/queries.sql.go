@@ -728,3 +728,465 @@ func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (User, e
 	)
 	return i, err
 }
+
+// =============================================================================
+// B2B Multi-Tenancy Queries (Phase: B2B SaaS Pivot)
+// =============================================================================
+
+const createPersonalOrganization = `-- name: CreatePersonalOrganization :one
+INSERT INTO organizations (
+    github_id, login, display_name, avatar_url, type, installation_id,
+    plan_tier, is_active, quality_gate_threshold, workspace_type
+) VALUES (
+    $1, $2, $3, $4, 'User', $5, 'free', true, 80, 'personal'
+)
+ON CONFLICT (github_id) DO UPDATE SET login = EXCLUDED.login
+RETURNING id
+`
+
+type CreatePersonalOrganizationParams struct {
+	GithubID       int64       `json:"github_id"`
+	Login          string      `json:"login"`
+	DisplayName    pgtype.Text `json:"display_name"`
+	AvatarUrl      pgtype.Text `json:"avatar_url"`
+	InstallationID int64       `json:"installation_id"`
+}
+
+func (q *Queries) CreatePersonalOrganization(ctx context.Context, arg CreatePersonalOrganizationParams) (int64, error) {
+	row := q.db.QueryRow(ctx, createPersonalOrganization,
+		arg.GithubID, arg.Login, arg.DisplayName, arg.AvatarUrl, arg.InstallationID,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const createCompanyOrganization = `-- name: CreateCompanyOrganization :one
+INSERT INTO organizations (
+    github_id, login, display_name, avatar_url, type, installation_id,
+    plan_tier, is_active, quality_gate_threshold, workspace_type
+) VALUES (
+    $1, $2, $3, $4, 'Organization', $5, 'free', true, 80, 'company'
+)
+ON CONFLICT (github_id) DO UPDATE SET login = EXCLUDED.login
+RETURNING id
+`
+
+type CreateCompanyOrganizationParams struct {
+	GithubID       int64       `json:"github_id"`
+	Login          string      `json:"login"`
+	DisplayName    pgtype.Text `json:"display_name"`
+	AvatarUrl      pgtype.Text `json:"avatar_url"`
+	InstallationID int64       `json:"installation_id"`
+}
+
+func (q *Queries) CreateCompanyOrganization(ctx context.Context, arg CreateCompanyOrganizationParams) (int64, error) {
+	row := q.db.QueryRow(ctx, createCompanyOrganization,
+		arg.GithubID, arg.Login, arg.DisplayName, arg.AvatarUrl, arg.InstallationID,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const addOrganizationUser = `-- name: AddOrganizationUser :exec
+INSERT INTO organization_users (org_id, user_id, role)
+VALUES ($1, $2, $3)
+ON CONFLICT (org_id, user_id) DO NOTHING
+`
+
+type AddOrganizationUserParams struct {
+	OrgID  int64  `json:"org_id"`
+	UserID int64  `json:"user_id"`
+	Role   string `json:"role"`
+}
+
+func (q *Queries) AddOrganizationUser(ctx context.Context, arg AddOrganizationUserParams) error {
+	_, err := q.db.Exec(ctx, addOrganizationUser, arg.OrgID, arg.UserID, arg.Role)
+	return err
+}
+
+const setUserCurrentOrg = `-- name: SetUserCurrentOrg :exec
+UPDATE users SET current_org_id = $1, updated_at = NOW() WHERE id = $2
+`
+
+type SetUserCurrentOrgParams struct {
+	CurrentOrgID pgtype.Int8 `json:"current_org_id"`
+	ID           int64       `json:"id"`
+}
+
+func (q *Queries) SetUserCurrentOrg(ctx context.Context, arg SetUserCurrentOrgParams) error {
+	_, err := q.db.Exec(ctx, setUserCurrentOrg, arg.CurrentOrgID, arg.ID)
+	return err
+}
+
+const getUserOrganizations = `-- name: GetUserOrganizations :many
+SELECT
+    o.id, o.login, o.display_name, o.avatar_url, o.workspace_type,
+    ou.role, ou.joined_at
+FROM organization_users ou
+JOIN organizations o ON o.id = ou.org_id
+WHERE ou.user_id = $1
+ORDER BY ou.joined_at ASC
+`
+
+type GetUserOrganizationsRow struct {
+	ID            int64              `json:"id"`
+	Login         string             `json:"login"`
+	DisplayName   pgtype.Text        `json:"display_name"`
+	AvatarUrl     pgtype.Text        `json:"avatar_url"`
+	WorkspaceType string             `json:"workspace_type"`
+	Role          string             `json:"role"`
+	JoinedAt      pgtype.Timestamptz `json:"joined_at"`
+}
+
+func (q *Queries) GetUserOrganizations(ctx context.Context, userID int64) ([]GetUserOrganizationsRow, error) {
+	rows, err := q.db.Query(ctx, getUserOrganizations, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserOrganizationsRow
+	for rows.Next() {
+		var i GetUserOrganizationsRow
+		if err := rows.Scan(
+			&i.ID, &i.Login, &i.DisplayName, &i.AvatarUrl,
+			&i.WorkspaceType, &i.Role, &i.JoinedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, rows.Err()
+}
+
+const getUserPendingInvites = `-- name: GetUserPendingInvites :many
+SELECT
+    i.id, i.org_id, i.target_email, i.status, i.created_at,
+    o.login AS org_login, o.display_name AS org_display_name, o.avatar_url AS org_avatar_url,
+    u.login AS inviter_login
+FROM organization_invites i
+JOIN organizations o ON o.id = i.org_id
+JOIN users u ON u.id = i.inviter_id
+WHERE i.target_email = $1 AND i.status = 'pending'
+ORDER BY i.created_at DESC
+`
+
+type GetUserPendingInvitesRow struct {
+	ID             int64              `json:"id"`
+	OrgID          int64              `json:"org_id"`
+	TargetEmail    string             `json:"target_email"`
+	Status         string             `json:"status"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	OrgLogin       string             `json:"org_login"`
+	OrgDisplayName pgtype.Text        `json:"org_display_name"`
+	OrgAvatarUrl   pgtype.Text        `json:"org_avatar_url"`
+	InviterLogin   string             `json:"inviter_login"`
+}
+
+func (q *Queries) GetUserPendingInvites(ctx context.Context, targetEmail string) ([]GetUserPendingInvitesRow, error) {
+	rows, err := q.db.Query(ctx, getUserPendingInvites, targetEmail)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserPendingInvitesRow
+	for rows.Next() {
+		var i GetUserPendingInvitesRow
+		if err := rows.Scan(
+			&i.ID, &i.OrgID, &i.TargetEmail, &i.Status, &i.CreatedAt,
+			&i.OrgLogin, &i.OrgDisplayName, &i.OrgAvatarUrl, &i.InviterLogin,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, rows.Err()
+}
+
+const getInviteByID = `-- name: GetInviteByID :one
+SELECT id, org_id, inviter_id, target_email, status
+FROM organization_invites
+WHERE id = $1
+`
+
+type GetInviteByIDRow struct {
+	ID          int64  `json:"id"`
+	OrgID       int64  `json:"org_id"`
+	InviterID   int64  `json:"inviter_id"`
+	TargetEmail string `json:"target_email"`
+	Status      string `json:"status"`
+}
+
+func (q *Queries) GetInviteByID(ctx context.Context, id int64) (GetInviteByIDRow, error) {
+	row := q.db.QueryRow(ctx, getInviteByID, id)
+	var i GetInviteByIDRow
+	err := row.Scan(&i.ID, &i.OrgID, &i.InviterID, &i.TargetEmail, &i.Status)
+	return i, err
+}
+
+const updateInviteStatus = `-- name: UpdateInviteStatus :exec
+UPDATE organization_invites
+SET status = $1, updated_at = NOW()
+WHERE id = $2
+`
+
+type UpdateInviteStatusParams struct {
+	Status string `json:"status"`
+	ID     int64  `json:"id"`
+}
+
+func (q *Queries) UpdateInviteStatus(ctx context.Context, arg UpdateInviteStatusParams) error {
+	_, err := q.db.Exec(ctx, updateInviteStatus, arg.Status, arg.ID)
+	return err
+}
+
+const createInvite = `-- name: CreateInvite :one
+INSERT INTO organization_invites (org_id, inviter_id, target_email, target_github_login, status)
+VALUES ($1, $2, $3, $4, 'pending')
+ON CONFLICT (org_id, target_email) DO UPDATE SET status = 'pending', updated_at = NOW()
+RETURNING id
+`
+
+type CreateInviteParams struct {
+	OrgID             int64       `json:"org_id"`
+	InviterID         int64       `json:"inviter_id"`
+	TargetEmail       string      `json:"target_email"`
+	TargetGithubLogin pgtype.Text `json:"target_github_login"`
+}
+
+func (q *Queries) CreateInvite(ctx context.Context, arg CreateInviteParams) (int64, error) {
+	row := q.db.QueryRow(ctx, createInvite,
+		arg.OrgID, arg.InviterID, arg.TargetEmail, arg.TargetGithubLogin,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const getOrgPullRequests = `-- name: GetOrgPullRequests :many
+SELECT
+    pr.id, pr.title, pr.pull_number, pr.author_login, pr.state,
+    pr.merged_at, pr.analysis_status, pr.quality_score, pr.merge_blocked,
+    pr.findings_critical, pr.findings_high, pr.findings_medium, pr.findings_low, pr.findings_info,
+    pr.created_at, r.full_name AS repository_full_name
+FROM pull_requests pr
+JOIN repositories r ON pr.repository_id = r.id
+WHERE pr.organization_id = $1
+ORDER BY pr.created_at DESC
+LIMIT $2
+`
+
+type GetOrgPullRequestsParams struct {
+	OrganizationID int64 `json:"organization_id"`
+	Limit          int32 `json:"limit"`
+}
+
+type GetOrgPullRequestsRow struct {
+	ID                 int64              `json:"id"`
+	Title              string             `json:"title"`
+	PullNumber         int64              `json:"pull_number"`
+	AuthorLogin        string             `json:"author_login"`
+	State              string             `json:"state"`
+	MergedAt           pgtype.Timestamptz `json:"merged_at"`
+	AnalysisStatus     string             `json:"analysis_status"`
+	QualityScore       pgtype.Int4        `json:"quality_score"`
+	MergeBlocked       bool               `json:"merge_blocked"`
+	FindingsCritical   int32              `json:"findings_critical"`
+	FindingsHigh       int32              `json:"findings_high"`
+	FindingsMedium     int32              `json:"findings_medium"`
+	FindingsLow        int32              `json:"findings_low"`
+	FindingsInfo       int32              `json:"findings_info"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	RepositoryFullName string             `json:"repository_full_name"`
+}
+
+func (q *Queries) GetOrgPullRequests(ctx context.Context, arg GetOrgPullRequestsParams) ([]GetOrgPullRequestsRow, error) {
+	rows, err := q.db.Query(ctx, getOrgPullRequests, arg.OrganizationID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrgPullRequestsRow
+	for rows.Next() {
+		var i GetOrgPullRequestsRow
+		if err := rows.Scan(
+			&i.ID, &i.Title, &i.PullNumber, &i.AuthorLogin, &i.State,
+			&i.MergedAt, &i.AnalysisStatus, &i.QualityScore, &i.MergeBlocked,
+			&i.FindingsCritical, &i.FindingsHigh, &i.FindingsMedium, &i.FindingsLow, &i.FindingsInfo,
+			&i.CreatedAt, &i.RepositoryFullName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, rows.Err()
+}
+
+const getOrgPullRequestsByAuthor = `-- name: GetOrgPullRequestsByAuthor :many
+SELECT
+    pr.id, pr.title, pr.pull_number, pr.author_login, pr.state,
+    pr.merged_at, pr.analysis_status, pr.quality_score, pr.merge_blocked,
+    pr.findings_critical, pr.findings_high, pr.findings_medium, pr.findings_low, pr.findings_info,
+    pr.created_at, r.full_name AS repository_full_name
+FROM pull_requests pr
+JOIN repositories r ON pr.repository_id = r.id
+WHERE pr.organization_id = $1
+  AND pr.author_login = $3
+ORDER BY pr.created_at DESC
+LIMIT $2
+`
+
+type GetOrgPullRequestsByAuthorParams struct {
+	OrganizationID int64  `json:"organization_id"`
+	Limit          int32  `json:"limit"`
+	AuthorLogin    string `json:"author_login"`
+}
+
+func (q *Queries) GetOrgPullRequestsByAuthor(ctx context.Context, arg GetOrgPullRequestsByAuthorParams) ([]GetOrgPullRequestsRow, error) {
+	rows, err := q.db.Query(ctx, getOrgPullRequestsByAuthor, arg.OrganizationID, arg.Limit, arg.AuthorLogin)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrgPullRequestsRow
+	for rows.Next() {
+		var i GetOrgPullRequestsRow
+		if err := rows.Scan(
+			&i.ID, &i.Title, &i.PullNumber, &i.AuthorLogin, &i.State,
+			&i.MergedAt, &i.AnalysisStatus, &i.QualityScore, &i.MergeBlocked,
+			&i.FindingsCritical, &i.FindingsHigh, &i.FindingsMedium, &i.FindingsLow, &i.FindingsInfo,
+			&i.CreatedAt, &i.RepositoryFullName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, rows.Err()
+}
+
+const getOrgLeaderboard = `-- name: GetOrgLeaderboard :many
+SELECT
+    author_login,
+    COUNT(*) AS pr_count,
+    AVG(quality_score)::FLOAT8 AS avg_quality_score,
+    (AVG(quality_score) * LN(COUNT(*) + 1))::FLOAT8 AS performance_index
+FROM pull_requests
+WHERE organization_id = $1
+  AND quality_score IS NOT NULL
+GROUP BY author_login
+ORDER BY performance_index DESC
+`
+
+type GetOrgLeaderboardRow struct {
+	AuthorLogin      string  `json:"author_login"`
+	PrCount          int64   `json:"pr_count"`
+	AvgQualityScore  float64 `json:"avg_quality_score"`
+	PerformanceIndex float64 `json:"performance_index"`
+}
+
+func (q *Queries) GetOrgLeaderboard(ctx context.Context, organizationID int64) ([]GetOrgLeaderboardRow, error) {
+	rows, err := q.db.Query(ctx, getOrgLeaderboard, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrgLeaderboardRow
+	for rows.Next() {
+		var i GetOrgLeaderboardRow
+		if err := rows.Scan(
+			&i.AuthorLogin, &i.PrCount, &i.AvgQualityScore, &i.PerformanceIndex,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, rows.Err()
+}
+
+const getOrgMembers = `-- name: GetOrgMembers :many
+SELECT
+    ou.user_id, ou.role, ou.joined_at,
+    u.login, u.name, u.avatar_url
+FROM organization_users ou
+JOIN users u ON u.id = ou.user_id
+WHERE ou.org_id = $1
+ORDER BY ou.joined_at ASC
+`
+
+type GetOrgMembersRow struct {
+	UserID    int64              `json:"user_id"`
+	Role      string             `json:"role"`
+	JoinedAt  pgtype.Timestamptz `json:"joined_at"`
+	Login     string             `json:"login"`
+	Name      pgtype.Text        `json:"name"`
+	AvatarUrl pgtype.Text        `json:"avatar_url"`
+}
+
+func (q *Queries) GetOrgMembers(ctx context.Context, orgID int64) ([]GetOrgMembersRow, error) {
+	rows, err := q.db.Query(ctx, getOrgMembers, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrgMembersRow
+	for rows.Next() {
+		var i GetOrgMembersRow
+		if err := rows.Scan(
+			&i.UserID, &i.Role, &i.JoinedAt, &i.Login, &i.Name, &i.AvatarUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, rows.Err()
+}
+
+const getUserCurrentOrg = `-- name: GetUserCurrentOrg :one
+SELECT current_org_id FROM users WHERE id = $1
+`
+
+func (q *Queries) GetUserCurrentOrg(ctx context.Context, id int64) (pgtype.Int8, error) {
+	row := q.db.QueryRow(ctx, getUserCurrentOrg, id)
+	var currentOrgID pgtype.Int8
+	err := row.Scan(&currentOrgID)
+	return currentOrgID, err
+}
+
+const getOrgPendingInvites = `-- name: GetOrgPendingInvites :many
+SELECT
+    i.id, i.target_email, i.target_github_login, i.status, i.created_at,
+    u.login AS inviter_login
+FROM organization_invites i
+JOIN users u ON u.id = i.inviter_id
+WHERE i.org_id = $1 AND i.status = 'pending'
+ORDER BY i.created_at DESC
+`
+
+type GetOrgPendingInvitesRow struct {
+	ID                int64              `json:"id"`
+	TargetEmail       string             `json:"target_email"`
+	TargetGithubLogin pgtype.Text        `json:"target_github_login"`
+	Status            string             `json:"status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	InviterLogin      string             `json:"inviter_login"`
+}
+
+func (q *Queries) GetOrgPendingInvites(ctx context.Context, orgID int64) ([]GetOrgPendingInvitesRow, error) {
+	rows, err := q.db.Query(ctx, getOrgPendingInvites, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrgPendingInvitesRow
+	for rows.Next() {
+		var i GetOrgPendingInvitesRow
+		if err := rows.Scan(
+			&i.ID, &i.TargetEmail, &i.TargetGithubLogin, &i.Status, &i.CreatedAt, &i.InviterLogin,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, rows.Err()
+}
