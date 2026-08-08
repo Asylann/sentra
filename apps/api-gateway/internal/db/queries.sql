@@ -332,6 +332,9 @@ RETURNING id;
 
 -- name: GetOrgPullRequests :many
 -- Fetches PRs for a specific organization.
+-- Includes PRs directly linked to this org AND PRs authored by any org member
+-- (covers the case where a PR was stored under a different org_id but was authored
+-- by a member of the requested org — e.g., personal repo PRs of team members).
 SELECT
     pr.id,
     pr.title,
@@ -352,6 +355,11 @@ SELECT
 FROM pull_requests pr
 JOIN repositories r ON pr.repository_id = r.id
 WHERE pr.organization_id = $1
+   OR pr.author_login IN (
+       SELECT u.login FROM organization_users ou
+       JOIN users u ON u.id = ou.user_id
+       WHERE ou.org_id = $1
+   )
 ORDER BY pr.created_at DESC
 LIMIT $2;
 

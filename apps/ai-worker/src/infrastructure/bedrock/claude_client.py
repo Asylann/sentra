@@ -45,7 +45,11 @@ REVIEW_TOOL_SCHEMA = {
         "and — when the fix is unambiguous — the exact replacement code in `suggestion_code`. "
         "The suggestion_code field must contain ONLY the corrected line(s) that replace "
         "the original code at line_start through line_end. Do NOT include diff markers, "
-        "fences, or surrounding unchanged lines."
+        "fences, or surrounding unchanged lines.\n\n"
+        "VALIDATION RULES:\n"
+        "- suggestion_code MUST differ from the original code. Identical before/after = invalid.\n"
+        "- Do NOT rename standard SQL columns (user_id, created_at, etc.).\n"
+        "- If unsure about the fix, leave suggestion_code as empty string."
     ),
     "inputSchema": {
         "json": {
@@ -94,6 +98,8 @@ REVIEW_TOOL_SCHEMA = {
                                     "Exact replacement source code for the affected lines. "
                                     "This will be rendered inside a GitHub ```suggestion fence "
                                     "so the developer can click 'Apply suggestion' to auto-fix. "
+                                    "MUST be different from the original code — if the replacement "
+                                    "would be identical to what already exists, use empty string. "
                                     "Leave empty string if the fix is non-trivial or ambiguous."
                                 )
                             }
@@ -122,7 +128,21 @@ BASE_SYSTEM_PROMPT = (
     "- Include ONLY the replacement code — no diff markers, no surrounding context.\n"
     "- For complex refactors or design-level issues, leave suggestion_code as empty string "
     "and explain the fix in suggested_fix instead.\n"
-    "- Prioritize security findings (CRITICAL/HIGH) over style nits.\n"
+    "- Prioritize security findings (CRITICAL/HIGH) over style nits.\n\n"
+    "ANTI-HALLUCINATION RULES (MANDATORY — violations invalidate the entire review):\n"
+    "1. NEVER suggest a code fix where the suggestion_code is identical to the original code. "
+    "If you cannot produce code that is DIFFERENT from what already exists, leave suggestion_code "
+    "as an empty string. A no-op suggestion is worse than no suggestion.\n"
+    "2. Do NOT hallucinate stylistic changes for standard database naming conventions. "
+    "Column names like user_id, created_at, updated_at, org_id follow correct snake_case SQL "
+    "convention — do NOT suggest renaming them to userid, createdat, orgid, etc.\n"
+    "3. If you cannot confidently provide a syntactically correct and MEANINGFUL fix that "
+    "actually changes the code, leave suggestion_code as empty string and explain the issue "
+    "in suggested_fix text only.\n"
+    "4. Before emitting any finding, verify that the original line you reference actually "
+    "appears in the diff exactly as you quote it. Do NOT fabricate or hallucinate line content "
+    "that does not exist in the provided <git_diff>.\n"
+    "5. Do NOT emit duplicate findings for the same line with different wording.\n"
 )
 
 

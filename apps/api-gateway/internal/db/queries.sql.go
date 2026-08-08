@@ -973,6 +973,11 @@ SELECT
 FROM pull_requests pr
 JOIN repositories r ON pr.repository_id = r.id
 WHERE pr.organization_id = $1
+   OR pr.author_login IN (
+       SELECT u.login FROM organization_users ou
+       JOIN users u ON u.id = ou.user_id
+       WHERE ou.org_id = $1
+   )
 ORDER BY pr.created_at DESC
 LIMIT $2
 `
