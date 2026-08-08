@@ -97,21 +97,28 @@ function AnimatedCounter({ target, suffix = '' }) {
 }
 
 function B2BTeamSection() {
+  const developers = [
+    { name: 'Alex', initials: 'AK', gradient: 'from-violet-500 to-indigo-600', branch: 'feat/auth-flow' },
+    { name: 'Sara', initials: 'SM', gradient: 'from-emerald-500 to-teal-600', branch: 'fix/api-timeout' },
+    { name: 'Kai', initials: 'KR', gradient: 'from-amber-500 to-orange-600', branch: 'refactor/db-layer' },
+  ];
+
   return (
-    <section className="py-32 px-4 relative overflow-hidden border-t border-white/[0.04] bg-[#020202]">
-      {/* Background gradients */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none" />
-      
-      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
-        
-        {/* Left: Text Content */}
-        <div className="flex-1 text-center lg:text-left z-10">
+    <section className="py-32 px-4 relative overflow-hidden border-t border-white/[0.04]">
+      <div className="absolute inset-0 bg-[#010101]" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-indigo-600/[0.04] blur-[150px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-[600px] h-[400px] bg-purple-600/[0.03] blur-[120px] rounded-full pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto relative z-10">
+
+        {/* Header */}
+        <div className="text-center mb-20">
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
-            className="text-sm font-medium text-indigo-400 uppercase tracking-widest mb-4"
+            className="text-sm font-medium text-indigo-400 uppercase tracking-[0.2em] mb-4"
           >
             For Engineering Teams
           </motion.p>
@@ -120,136 +127,213 @@ function B2BTeamSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-4xl md:text-5xl font-bold tracking-tight text-white mb-6"
+            className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-[-0.03em] text-white mb-6"
           >
-            Build great software <br className="hidden lg:block"/>together.
+            Build great software{' '}
+            <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">together.</span>
           </motion.h2>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg text-gray-400 leading-relaxed max-w-xl mx-auto lg:mx-0 mb-10"
+            className="text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed"
           >
-            Invite your developers into a secure company workspace. Sentra AI reviews every pull request, tracks quality scores across your repositories, and surfaces team-wide insights — all in one centralized dashboard.
+            Every pull request flows through Sentra. Your team gets instant feedback, quality scores, and one-click fixes — before a single line reaches main.
           </motion.p>
-          
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="flex flex-col sm:flex-row gap-4 items-center justify-center lg:justify-start"
-          >
-            <div className="flex -space-x-3">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className={`w-10 h-10 rounded-full border-2 border-[#020202] flex items-center justify-center bg-gradient-to-br ${
-                  i === 1 ? 'from-purple-500 to-indigo-500' : 
-                  i === 2 ? 'from-emerald-500 to-teal-500' :
-                  i === 3 ? 'from-rose-500 to-orange-500' : 'from-blue-500 to-cyan-500'
-                }`}>
-                  <Users className="w-4 h-4 text-white/90" />
+        </div>
+
+        {/* Animated Pipeline Visualization */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.8, delay: 0.3 }}
+          className="relative max-w-5xl mx-auto"
+        >
+          {/* The "screen" container */}
+          <div className="relative bg-[#0A0A0F] border border-white/[0.08] rounded-2xl overflow-hidden shadow-2xl shadow-black/50">
+
+            {/* Window chrome */}
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-white/[0.06] bg-white/[0.02]">
+              <div className="flex gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
+                <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
+                <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
+              </div>
+              <div className="flex-1 flex justify-center">
+                <div className="px-4 py-1 rounded-md bg-white/[0.04] border border-white/[0.06] text-[11px] text-gray-500 font-mono">
+                  sentra.ai/dashboard/team
                 </div>
-              ))}
+              </div>
             </div>
-            <p className="text-sm text-gray-500 font-medium">Built for teams of 5 to 5,000</p>
-          </motion.div>
-        </div>
 
-        {/* Right: Animated Visual */}
-        <div className="flex-1 w-full max-w-lg relative z-10 perspective-1000">
-          <PerspectiveCard delay={0.2}>
-            <div className="relative aspect-[4/3] bg-white/[0.02] border border-white/[0.08] rounded-2xl p-6 overflow-hidden flex items-center justify-center shadow-2xl shadow-indigo-500/5">
-              
-              {/* SVG Connecting Lines */}
-              <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ filter: 'drop-shadow(0 0 8px rgba(99,102,241,0.2))' }}>
-                {[
-                  { start: [20, 20], end: [50, 50] },
-                  { start: [20, 80], end: [50, 50] },
-                  { start: [80, 20], end: [50, 50] },
-                  { start: [80, 80], end: [50, 50] }
-                ].map((path, i) => (
-                  <g key={i}>
-                    {/* Base faint line */}
-                    <path
-                      d={`M ${path.start[0]}% ${path.start[1]}% L ${path.end[0]}% ${path.end[1]}%`}
-                      stroke="rgba(255,255,255,0.05)"
-                      strokeWidth="2"
-                      fill="none"
-                    />
-                    {/* Animated moving pulse */}
-                    <motion.circle
-                      r="3"
-                      fill="#818cf8"
-                      initial={{ cx: `${path.start[0]}%`, cy: `${path.start[1]}%`, opacity: 0 }}
-                      animate={{ 
-                        cx: [`${path.start[0]}%`, `${path.end[0]}%`], 
-                        cy: [`${path.start[1]}%`, `${path.end[1]}%`],
-                        opacity: [0, 1, 1, 0] 
-                      }}
-                      transition={{ 
-                        duration: 2, 
-                        repeat: Infinity, 
-                        delay: i * 0.7,
-                        ease: "easeInOut"
-                      }}
-                    />
-                  </g>
+            {/* Content area */}
+            <div className="p-8 md:p-12 min-h-[400px] flex flex-col justify-center">
+
+              {/* Pipeline rows */}
+              <div className="space-y-4">
+                {developers.map((dev, i) => (
+                  <motion.div
+                    key={dev.name}
+                    initial={{ opacity: 0, x: -40 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.5 + i * 0.15, duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+                    className="group relative"
+                  >
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-white/[0.1] transition-all duration-300">
+
+                      {/* Avatar */}
+                      <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${dev.gradient} flex items-center justify-center text-[11px] font-bold text-white shrink-0 shadow-lg`}>
+                        {dev.initials}
+                      </div>
+
+                      {/* Branch info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-sm font-medium text-gray-200">{dev.name}</span>
+                          <span className="text-gray-600 text-xs">opened a PR</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <GitMerge className="w-3 h-3 text-gray-600 shrink-0" />
+                          <span className="text-xs font-mono text-gray-500 truncate">{dev.branch}</span>
+                        </div>
+                      </div>
+
+                      {/* Analysis pipeline animation */}
+                      <div className="hidden sm:flex items-center gap-2">
+                        {/* Step indicators */}
+                        {['Scan', 'AI Review', 'Score'].map((step, j) => (
+                          <motion.div
+                            key={step}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            whileInView={{ opacity: 1, scale: 1 }}
+                            viewport={{ once: true }}
+                            transition={{ delay: 0.8 + i * 0.15 + j * 0.2 }}
+                            className="flex items-center gap-1"
+                          >
+                            <motion.div
+                              animate={{ opacity: [0.5, 1, 0.5] }}
+                              transition={{ duration: 2, repeat: Infinity, delay: j * 0.3 + i * 0.5 }}
+                              className={`w-1.5 h-1.5 rounded-full ${j < 2 ? 'bg-emerald-400' : 'bg-indigo-400'}`}
+                            />
+                            <span className="text-[10px] text-gray-600 font-medium">{step}</span>
+                            {j < 2 && <div className="w-3 h-px bg-white/[0.08] mx-0.5" />}
+                          </motion.div>
+                        ))}
+                      </div>
+
+                      {/* Quality score */}
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0 }}
+                        whileInView={{ opacity: 1, scale: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: 1.4 + i * 0.2, type: "spring", bounce: 0.4 }}
+                        className={`shrink-0 px-3 py-1.5 rounded-lg border text-xs font-bold font-mono ${
+                          i === 0 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                          i === 1 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                          'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                        }`}
+                      >
+                        {i === 0 ? '94' : i === 1 ? '87' : '72'}
+                      </motion.div>
+
+                      {/* Status */}
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        whileInView={{ opacity: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: 1.6 + i * 0.2 }}
+                        className="shrink-0"
+                      >
+                        {i < 2 ? (
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                        ) : (
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                            className="w-5 h-5 rounded-full border-2 border-indigo-400/30 border-t-indigo-400"
+                          />
+                        )}
+                      </motion.div>
+                    </div>
+
+                    {/* Animated suggestion preview (appears for middle row) */}
+                    {i === 1 && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        whileInView={{ opacity: 1, height: 'auto' }}
+                        viewport={{ once: true }}
+                        transition={{ delay: 1.8, duration: 0.5 }}
+                        className="mt-2 ml-14 mr-4"
+                      >
+                        <div className="p-3 rounded-lg bg-indigo-500/[0.04] border border-indigo-500/10 font-mono text-[11px] leading-relaxed">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[9px] font-bold">SUGGESTION</div>
+                            <span className="text-gray-500">src/api/handler.go:42</span>
+                          </div>
+                          <div className="text-red-400/80 line-through decoration-red-400/30">{'  timeout: 30 * time.Second,'}</div>
+                          <div className="text-emerald-400/90">{'+  timeout: 5 * time.Second, // prevent cascading failures'}</div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </motion.div>
                 ))}
-              </svg>
+              </div>
 
-              {/* Developer Nodes */}
-              {[
-                { top: '20%', left: '20%' },
-                { top: '80%', left: '20%' },
-                { top: '20%', left: '80%' },
-                { top: '80%', left: '80%' }
-              ].map((pos, i) => (
-                <motion.div 
-                  key={i}
-                  initial={{ scale: 0 }}
-                  whileInView={{ scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.4 + (i * 0.1), type: "spring" }}
-                  className="absolute w-12 h-12 -ml-6 -mt-6 bg-[#0a0a0a] border border-white/10 rounded-xl flex items-center justify-center z-10 shadow-lg"
-                  style={{ top: pos.top, left: pos.left }}
-                >
-                  <Code2 className="w-5 h-5 text-gray-400" />
-                </motion.div>
-              ))}
-
-              {/* Center Workspace Node */}
-              <motion.div 
-                initial={{ scale: 0 }}
-                whileInView={{ scale: 1 }}
+              {/* Bottom stats bar */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: 0.2, type: "spring" }}
-                className="relative z-20 w-24 h-24 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/40 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-500/20 backdrop-blur-md"
+                transition={{ delay: 2.0, duration: 0.5 }}
+                className="mt-8 pt-6 border-t border-white/[0.04] flex flex-wrap items-center justify-between gap-4"
               >
-                <motion.div
-                  animate={{ scale: [1, 1.05, 1] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <Building2 className="w-10 h-10 text-indigo-400" />
-                </motion.div>
-                
-                {/* Ping rings */}
-                <div className="absolute inset-0 rounded-2xl border border-indigo-400/30 animate-ping" style={{ animationDuration: '3s' }} />
+                <div className="flex items-center gap-6">
+                  {[
+                    { label: 'PRs reviewed', value: '1,247' },
+                    { label: 'Avg score', value: '86' },
+                    { label: 'Bugs caught', value: '342' },
+                  ].map((stat) => (
+                    <div key={stat.label} className="text-center">
+                      <div className="text-lg font-bold text-white font-mono">{stat.value}</div>
+                      <div className="text-[10px] text-gray-600 uppercase tracking-wider">{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex -space-x-2">
+                    {developers.map((d) => (
+                      <div key={d.name} className={`w-6 h-6 rounded-full bg-gradient-to-br ${d.gradient} border-2 border-[#0A0A0F] text-[8px] font-bold text-white flex items-center justify-center`}>
+                        {d.initials}
+                      </div>
+                    ))}
+                    <div className="w-6 h-6 rounded-full bg-white/10 border-2 border-[#0A0A0F] text-[8px] font-medium text-gray-400 flex items-center justify-center">
+                      +5
+                    </div>
+                  </div>
+                  <span className="text-[11px] text-gray-500">8 engineers active</span>
+                </div>
               </motion.div>
-              
-              {/* Floating Success indicators */}
-              <motion.div 
-                animate={{ y: [-5, 5, -5] }} 
-                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute top-[35%] right-[35%] bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2 py-1 flex items-center gap-1 backdrop-blur-md z-30"
-              >
-                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                <span className="text-[10px] text-emerald-300 font-medium tracking-wide uppercase">Merged</span>
-              </motion.div>
+
             </div>
-          </PerspectiveCard>
-        </div>
-        
+          </div>
+
+          {/* Glow effect behind the card */}
+          <div className="absolute -inset-4 -z-10 bg-gradient-to-b from-indigo-500/[0.05] via-transparent to-purple-500/[0.03] rounded-3xl blur-2xl" />
+        </motion.div>
+
+        {/* Bottom tagline */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ delay: 2.2, duration: 0.6 }}
+          className="text-center text-sm text-gray-600 mt-10"
+        >
+          Trusted by teams at startups and enterprises shipping 50+ PRs per week.
+        </motion.p>
       </div>
     </section>
   );
@@ -412,6 +496,9 @@ export default function LandingPage() {
             </div>
           </div>
         </motion.section>
+
+        {/* ===== B2B TEAM SECTION ===== */}
+        <B2BTeamSection />
 
         {/* ===== SCROLL TEXT REVEAL ===== */}
         <section className="py-40 px-4 relative">
@@ -698,9 +785,6 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
-
-        {/* ===== B2B TEAM SECTION ===== */}
-        <B2BTeamSection />
 
         {/* ===== CTA ===== */}
         <section className="py-40 px-4 relative">

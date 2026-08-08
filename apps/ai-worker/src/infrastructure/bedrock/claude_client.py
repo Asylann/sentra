@@ -98,9 +98,11 @@ REVIEW_TOOL_SCHEMA = {
                                     "Exact replacement source code for the affected lines. "
                                     "This will be rendered inside a GitHub ```suggestion fence "
                                     "so the developer can click 'Apply suggestion' to auto-fix. "
-                                    "MUST be different from the original code — if the replacement "
-                                    "would be identical to what already exists, use empty string. "
-                                    "Leave empty string if the fix is non-trivial or ambiguous."
+                                    "IMPORTANT: You MUST populate this for ANY finding where the fix is a "
+                                    "simple text replacement (typos, wrong paths, invalid ports, misspelled "
+                                    "names, truncated strings, wrong image tags, missing characters). "
+                                    "Only leave empty for complex refactors requiring multi-file changes. "
+                                    "MUST be different from the original code."
                                 )
                             }
                         },

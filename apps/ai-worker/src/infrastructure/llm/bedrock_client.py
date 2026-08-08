@@ -125,9 +125,12 @@ class BedrockClaudeClient:
                                             "description": (
                                                 "Exact replacement source code for the affected line(s). "
                                                 "This is rendered inside a GitHub ```suggestion fence for one-click apply. "
-                                                "Must be DIFFERENT from the original code. "
-                                                "If the fix is non-trivial, ambiguous, or would be identical to the original, "
-                                                "leave as empty string."
+                                                "IMPORTANT: You MUST populate this field for ANY finding where the fix is a "
+                                                "simple text replacement (typos, wrong paths, invalid ports, misspelled names, "
+                                                "truncated strings, wrong image tags). These are unambiguous single-line fixes. "
+                                                "Only leave empty for complex refactors or design-level issues that require "
+                                                "multi-file changes. The suggestion_code must be DIFFERENT from the original. "
+                                                "Include ONLY the replacement text — no diff markers, no fences, no context lines."
                                             )
                                         }
                                     },
