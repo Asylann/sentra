@@ -65,7 +65,17 @@ class BedrockClaudeClient:
                     "carefully check every instruction for truncated paths, misspelled commands, invalid port numbers, "
                     "wrong image tags, or missing config keys — these are MEDIUM or HIGH severity, NOT INFO, because they break builds or deployments. "
                     "For documentation files (README, LICENSE, .md), report typos and formatting errors as INFO. "
-                    "Never skip findings in infrastructure/config files by labelling them cosmetic."
+                    "Never skip findings in infrastructure/config files by labelling them cosmetic.\n\n"
+                    "ANTI-HALLUCINATION RULES (MANDATORY):\n"
+                    "1. NEVER suggest a fix where the suggested code is identical to the original code. "
+                    "If the '-' line and '+' line would be the same text, do NOT emit that finding.\n"
+                    "2. Do NOT hallucinate stylistic changes for standard database naming conventions. "
+                    "Columns like user_id, created_at, updated_at are correct snake_case SQL style — "
+                    "do NOT suggest changing them to userid, createdat, etc.\n"
+                    "3. If you cannot confidently provide a syntactically correct and MEANINGFUL fix "
+                    "that actually changes the code, leave suggested_fix as an empty string.\n"
+                    "4. Before emitting any finding, verify that the original line you reference actually "
+                    "appears in the diff exactly as you quote it. Do NOT fabricate line content."
                 ),
                 "inputSchema": {
                     "json": {
@@ -102,14 +112,26 @@ class BedrockClaudeClient:
                                                 "+new corrected line\n"
                                                 "Rules: the '-' line must be copied EXACTLY from the file (same spacing, same characters). "
                                                 "The '+' line must show the corrected version. "
-                                                "Do NOT output identical text on both '-' and '+' lines. "
+                                                "CRITICAL: Do NOT output identical text on both '-' and '+' lines — "
+                                                "if you cannot produce a DIFFERENT '+' line, leave this field as empty string. "
                                                 "Do NOT wrap in triple backticks. "
                                                 "Do NOT invent lines that do not exist in the diff. "
+                                                "Do NOT rename standard SQL column names (user_id, created_at, etc). "
                                                 "Example for a typo fix: -FROM nginx:1.25-alp\\n+FROM nginx:1.25-alpine"
+                                            )
+                                        },
+                                        "suggestion_code": {
+                                            "type": "string",
+                                            "description": (
+                                                "Exact replacement source code for the affected line(s). "
+                                                "This is rendered inside a GitHub ```suggestion fence for one-click apply. "
+                                                "Must be DIFFERENT from the original code. "
+                                                "If the fix is non-trivial, ambiguous, or would be identical to the original, "
+                                                "leave as empty string."
                                             )
                                         }
                                     },
-                                    "required": ["file_path", "line_start", "category", "severity", "title", "description", "suggested_fix"]
+                                    "required": ["file_path", "line_start", "category", "severity", "title", "description", "suggested_fix", "suggestion_code"]
                                 }
                             }
                         },

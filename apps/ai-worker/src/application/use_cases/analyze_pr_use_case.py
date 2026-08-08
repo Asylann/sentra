@@ -1,9 +1,10 @@
 import asyncio
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from src.infrastructure.github.client import GitHubClient
 from src.infrastructure.github.check_runs import GitHubCheckRunsAPI
+from src.infrastructure.github.pr_review_adapter import PRReviewAdapter
 from src.application.services.noise_filter import DiffNoiseFilter
 from src.application.services.ast_pruner import ASTContextPruner
 from src.infrastructure.database.rag_repository import RAGRepository
@@ -19,22 +20,30 @@ import hashlib
 
 logger = logging.getLogger(__name__)
 
+
 class AnalyzePRUseCase:
     """
     Application layer Use Case for analyzing a Pull Request.
     The ultimate orchestrator wiring the complete DevSecOps AI pipeline.
+
+    Routing strategy:
+      - Findings WITH suggestion_code -> PR Review comments (full Markdown, "Apply suggestion" button)
+      - Findings WITHOUT suggestion_code -> remain as Check Run annotations (plain text)
+      - Check Run summary always shows the high-level quality table
     """
     def __init__(
-        self, 
-        github_client: GitHubClient, 
+        self,
+        github_client: GitHubClient,
         check_runs_api: GitHubCheckRunsAPI,
-        rag_repo: RAGRepository, 
+        pr_review_adapter: PRReviewAdapter,
+        rag_repo: RAGRepository,
         bedrock_client: BedrockClaudeClient,
         redis_publisher: RedisPublisher,
         db_session_factory: async_sessionmaker
     ):
         self.github_client = github_client
         self.check_runs_api = check_runs_api
+        self.pr_review_adapter = pr_review_adapter
         self.rag_repo = rag_repo
         self.bedrock_client = bedrock_client
         self.redis_publisher = redis_publisher
@@ -194,6 +203,8 @@ class AnalyzePRUseCase:
 
             conclusion_label = "PASSED" if conclusion == "success" else "FAILED"
 
+            suggestable_count = sum(1 for f in all_findings if f.get('suggestion_code', '').strip())
+
             summary = (
                 f"## Sentra AI Security Review\n\n"
                 f"| | |\n"
@@ -211,10 +222,40 @@ class AnalyzePRUseCase:
                 f"| INFO | {counts['INFO']} |\n"
             )
 
-            # Step 9: Complete Check Run
-            logger.info("Step 9: Completing Check Run and Posting Annotations")
+            if suggestable_count:
+                summary += (
+                    f"\n> **{suggestable_count}** finding(s) posted as inline PR Review suggestions "
+                    f"with auto-fix support. Look for the **Apply suggestion** button on each comment.\n"
+                )
+
+            # Step 9: Route findings to appropriate GitHub surfaces
+            # Findings WITH suggestion_code -> PR Review (rich Markdown + "Apply suggestion")
+            # Findings WITHOUT suggestion_code -> Check Run annotations (plain text)
+            suggestable_findings = [
+                f for f in all_findings if f.get('suggestion_code', '').strip()
+            ]
+            annotation_only_findings = [
+                f for f in all_findings if not f.get('suggestion_code', '').strip()
+            ]
+
+            # 9a: Post suggestable findings as PR Review comments
+            if suggestable_findings:
+                logger.info(
+                    "Step 9a: Posting %d finding(s) as PR Review suggestions",
+                    len(suggestable_findings),
+                )
+                await self.pr_review_adapter.submit_review_comments(
+                    repo_full_name=repo_full_name,
+                    pull_number=pr_number,
+                    head_sha=head_sha,
+                    installation_id=installation_id,
+                    findings=suggestable_findings,
+                )
+
+            # 9b: Complete Check Run with summary + annotation-only findings
+            logger.info("Step 9b: Completing Check Run (summary + %d annotation-only findings)", len(annotation_only_findings))
             await self.check_runs_api.complete_check_run(
-                repo_full_name, check_run_id, conclusion, summary, all_findings, installation_id
+                repo_full_name, check_run_id, conclusion, summary, annotation_only_findings, installation_id
             )
             
             # (Note: Redis "completed" publish moved to Step 11 after DB persistence)

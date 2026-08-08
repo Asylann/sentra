@@ -12,6 +12,7 @@ from src.infrastructure.kafka.consumer import PRQueueConsumer
 from src.infrastructure.github.auth import GitHubAppAuth
 from src.infrastructure.github.client import GitHubClient
 from src.infrastructure.github.check_runs import GitHubCheckRunsAPI
+from src.infrastructure.github.pr_review_adapter import PRReviewAdapter
 from src.infrastructure.database.rag_repository import RAGRepository
 from src.infrastructure.llm.bedrock_client import BedrockClaudeClient
 from src.infrastructure.redis.redis_publisher import RedisPublisher
@@ -48,14 +49,16 @@ async def lifespan(app: FastAPI):
     github_auth = GitHubAppAuth(app_id=github_app_id, private_key=github_private_key)
     github_client = GitHubClient(auth=github_auth)
     check_runs_api = GitHubCheckRunsAPI(auth=github_auth)
+    pr_review_adapter = PRReviewAdapter(auth=github_auth)
     rag_repo = RAGRepository() # Session injection mocked for now
     bedrock_client = BedrockClaudeClient()
-    
+
     from src.infrastructure.database.database import AsyncSessionFactory
-    
+
     use_case = AnalyzePRUseCase(
         github_client=github_client,
         check_runs_api=check_runs_api,
+        pr_review_adapter=pr_review_adapter,
         rag_repo=rag_repo,
         bedrock_client=bedrock_client,
         redis_publisher=redis_publisher,

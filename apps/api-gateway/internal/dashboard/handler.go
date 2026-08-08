@@ -34,6 +34,23 @@ func (h *DashboardHandler) GetPullRequests(c *gin.Context) {
 		prs = []db.GetRecentPullRequestsRow{}
 	}
 
+	// For personal workspaces, filter PRs by the authenticated user's GitHub login.
+	// This ensures users only see their own PRs when not in a company workspace.
+	userLogin, exists := c.Get(auth.ContextKeyGitHubLogin)
+	if exists {
+		loginStr := userLogin.(string)
+		var filtered []db.GetRecentPullRequestsRow
+		for _, pr := range prs {
+			if strings.EqualFold(pr.AuthorLogin, loginStr) {
+				filtered = append(filtered, pr)
+			}
+		}
+		prs = filtered
+		if prs == nil {
+			prs = []db.GetRecentPullRequestsRow{}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"data": prs,
 	})
