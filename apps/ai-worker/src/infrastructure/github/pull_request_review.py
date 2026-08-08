@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 import httpx
 
@@ -14,6 +14,7 @@ class ReviewComment:
     line: int
     side: str
     body: str
+    start_line: Optional[int] = None
 
 
 class GitHubPullRequestReviewAPI:
@@ -77,19 +78,24 @@ class GitHubPullRequestReviewAPI:
             "Accept": "application/vnd.github.v3+json",
         }
 
+        review_comments = []
+        for c in comments:
+            comment_obj = {
+                "path": c.path,
+                "line": c.line,
+                "side": c.side,
+                "body": c.body,
+            }
+            if c.start_line is not None and c.start_line != c.line:
+                comment_obj["start_line"] = c.start_line
+                comment_obj["start_side"] = c.side
+            review_comments.append(comment_obj)
+
         payload = {
             "commit_id": commit_id,
             "body": body,
             "event": event,
-            "comments": [
-                {
-                    "path": c.path,
-                    "line": c.line,
-                    "side": c.side,
-                    "body": c.body,
-                }
-                for c in comments
-            ],
+            "comments": review_comments,
         }
 
         async with httpx.AsyncClient() as client:
