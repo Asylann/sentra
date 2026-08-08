@@ -57,9 +57,47 @@ func (h *DashboardHandler) GetPullRequests(c *gin.Context) {
 }
 
 func (h *DashboardHandler) GetMetrics(c *gin.Context) {
+	// Try the rollup table first
 	metrics, err := h.Queries.GetOrganizationMetrics(c)
 	if err != nil {
 		metrics = db.GetOrganizationMetricsRow{}
+	}
+
+	// If rollup is empty (no cron job running), compute metrics from the user's PR data
+	if metrics.TotalPrsMerged == 0 {
+		userLogin, exists := c.Get(auth.ContextKeyGitHubLogin)
+		if exists {
+			prs, pErr := h.Queries.GetRecentPullRequests(c, int32(200))
+			if pErr == nil {
+				loginStr := userLogin.(string)
+				var totalReviewed int
+				var totalBlocked int
+				var scoreSum float64
+				var scoreCount int
+				for _, pr := range prs {
+					if !strings.EqualFold(pr.AuthorLogin, loginStr) {
+						continue
+					}
+					if pr.AnalysisStatus == "completed" {
+						totalReviewed++
+					}
+					if pr.QualityScore.Valid {
+						scoreSum += float64(pr.QualityScore.Int32)
+						scoreCount++
+						if pr.QualityScore.Int32 < 60 {
+							totalBlocked++
+						}
+					}
+				}
+				avgScore := float64(0)
+				if scoreCount > 0 {
+					avgScore = scoreSum / float64(scoreCount)
+				}
+				metrics.TotalPrsMerged = int32(totalReviewed)
+				metrics.AverageQualityScore = avgScore
+				metrics.TotalPrsBlocked = int32(totalBlocked)
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

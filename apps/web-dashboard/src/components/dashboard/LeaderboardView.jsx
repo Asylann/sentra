@@ -53,10 +53,35 @@ export default function LeaderboardView() {
     async function load() {
       setLoading(true);
       try {
-        const res = await fetchWithAuth(`/api/v1/orgs/${currentOrg.id}/leaderboard`);
-        if (!res.ok) throw new Error(`Failed to load leaderboard (${res.status})`);
-        const json = await res.json();
-        setData(json.data || []);
+        if (isCompanyWorkspace) {
+          const res = await fetchWithAuth(`/api/v1/orgs/${currentOrg.id}/leaderboard`);
+          if (!res.ok) throw new Error(`Failed to load leaderboard (${res.status})`);
+          const json = await res.json();
+          setData(json.data || []);
+        } else {
+          const res = await fetchWithAuth('/api/v1/prs');
+          if (!res.ok) throw new Error(`Failed to load PRs (${res.status})`);
+          const json = await res.json();
+          const prs = (json.data || []).filter(pr => pr.analysis_status === 'completed' && pr.quality_score != null);
+          const grouped = {};
+          for (const pr of prs) {
+            const login = pr.author_login || 'unknown';
+            if (!grouped[login]) grouped[login] = { scores: [], count: 0 };
+            grouped[login].scores.push(pr.quality_score);
+            grouped[login].count++;
+          }
+          const computed = Object.entries(grouped).map(([login, d]) => {
+            const avg = d.scores.reduce((a, b) => a + b, 0) / d.scores.length;
+            return {
+              author_login: login,
+              pr_count: d.count,
+              avg_quality_score: avg,
+              performance_index: avg * Math.log(d.count + 1),
+            };
+          });
+          computed.sort((a, b) => b.performance_index - a.performance_index);
+          setData(computed);
+        }
       } catch (err) {
         setError(err.message);
       } finally {
@@ -64,7 +89,7 @@ export default function LeaderboardView() {
       }
     }
     load();
-  }, [fetchWithAuth, currentOrg?.id]);
+  }, [fetchWithAuth, currentOrg?.id, isCompanyWorkspace]);
 
   const maxPr = Math.max(...data.map(d => d.pr_count || 0), 1);
   const sorted = [...data].sort((a, b) => (b.performance_index || 0) - (a.performance_index || 0));
@@ -78,17 +103,6 @@ export default function LeaderboardView() {
     show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
   };
 
-  if (!isCompanyWorkspace) {
-    return (
-      <div className="max-w-4xl mx-auto text-center py-20">
-        <Users className="size-12 text-zinc-700 mx-auto mb-4" />
-        <h2 className="text-xl font-semibold text-white mb-2">Team Feature</h2>
-        <p className="text-sm text-zinc-500">
-          The leaderboard is available for company workspaces. Switch to a team workspace to view.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
