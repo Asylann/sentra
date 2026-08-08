@@ -67,6 +67,21 @@ func (h *Handler) HandleWebhook(c *gin.Context) {
 		return
 	}
 
+	// Event type filter: only process pull_request events through the full pipeline.
+	// Push events and all other event types are acknowledged but skipped.
+	switch eventType {
+	case "pull_request":
+		// Continue processing below
+	case "push":
+		log.Printf("Push event acknowledged but skipped (PR-only mode), delivery_id: %v", deliveryID)
+		c.Status(http.StatusOK)
+		return
+	default:
+		log.Printf("Event type '%s' acknowledged but not processed, delivery_id: %v", eventType, deliveryID)
+		c.Status(http.StatusOK)
+		return
+	}
+
 	// Phase 4: Execute Transactional Outbox Dual-Write
 	// Extract rudimentary JSON payload info
 	var tempPayload struct {
@@ -87,6 +102,14 @@ func (h *Handler) HandleWebhook(c *gin.Context) {
 
 	// Ignore err if it can't unmarshal cleanly, default values will be 0 or ""
 	json.Unmarshal(payload, &tempPayload)
+
+	// Action filter: only "opened" and "synchronize" trigger a full review.
+	// Other PR actions (closed, reopened, edited, etc.) are acknowledged but skipped.
+	if tempPayload.Action != "opened" && tempPayload.Action != "synchronize" {
+		log.Printf("PR event action '%s' skipped (only opened/synchronize trigger review), delivery_id: %v", tempPayload.Action, deliveryID)
+		c.Status(http.StatusOK)
+		return
+	}
 
 	err = h.service.ProcessWebhook(
 		c.Request.Context(),

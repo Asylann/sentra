@@ -142,17 +142,28 @@ func (s *Service) ProcessWebhook(ctx context.Context, deliveryID, eventType, act
 	}
 
 	// 3. Determine Kafka routing and insert Outbox Event (Part 2 of Dual-Write)
-	// Extract Pull Request Number from payload if applicable
+	// Extract Pull Request Number from payload if applicable.
+	// GitHub PR payloads contain the number at both payload.number and
+	// payload.pull_request.number. We check the nested path first, then fallback.
 	var pullNumber int64 = 0
 	if eventType == "pull_request" {
 		var prData struct {
-			Number int64 `json:"number"`
+			Number      int64 `json:"number"`
+			PullRequest struct {
+				Number int64 `json:"number"`
+			} `json:"pull_request"`
 		}
 		if err := json.Unmarshal(rawPayload, &prData); err == nil {
-			pullNumber = prData.Number
+			pullNumber = prData.PullRequest.Number
+			if pullNumber == 0 {
+				pullNumber = prData.Number
+			}
 		}
 	}
 
+	// NOTE: The handler pre-filters events so only pull_request with action
+	// "opened" or "synchronize" reaches ProcessWebhook. This condition is a
+	// secondary guard to ensure correctness even if called from other paths.
 	if pullNumber > 0 && repoType.Valid && (action == "opened" || action == "synchronize") {
 		// Check rate limit: 7 PR reviews per day per installation
 		var dailyCount int
