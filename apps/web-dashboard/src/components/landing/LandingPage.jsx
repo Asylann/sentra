@@ -98,9 +98,9 @@ function AnimatedCounter({ target, suffix = '' }) {
 
 function B2BTeamSection() {
   const developers = [
-    { name: 'Alex', initials: 'AK', gradient: 'from-violet-500 to-indigo-600', branch: 'feat/auth-flow' },
-    { name: 'Sara', initials: 'SM', gradient: 'from-emerald-500 to-teal-600', branch: 'fix/api-timeout' },
-    { name: 'Kai', initials: 'KR', gradient: 'from-amber-500 to-orange-600', branch: 'refactor/db-layer' },
+    { name: 'Alex', initials: 'AK', gradient: 'from-violet-500 to-indigo-600', branch: 'feat/auth-flow', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face' },
+    { name: 'Sara', initials: 'SM', gradient: 'from-emerald-500 to-teal-600', branch: 'fix/api-timeout', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=face' },
+    { name: 'Kai', initials: 'KR', gradient: 'from-amber-500 to-orange-600', branch: 'refactor/db-layer', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=80&h=80&fit=crop&crop=face' },
   ];
 
   return (
@@ -185,9 +185,11 @@ function B2BTeamSection() {
                     <div className="flex items-center gap-4 p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-white/[0.1] transition-all duration-300">
 
                       {/* Avatar */}
-                      <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${dev.gradient} flex items-center justify-center text-[11px] font-bold text-white shrink-0 shadow-lg`}>
-                        {dev.initials}
-                      </div>
+                      <img
+                        src={dev.avatar}
+                        alt={dev.name}
+                        className="w-9 h-9 rounded-full object-cover shrink-0 shadow-lg ring-2 ring-white/10"
+                      />
 
                       {/* Branch info */}
                       <div className="flex-1 min-w-0">
@@ -305,9 +307,7 @@ function B2BTeamSection() {
                 <div className="flex items-center gap-2">
                   <div className="flex -space-x-2">
                     {developers.map((d) => (
-                      <div key={d.name} className={`w-6 h-6 rounded-full bg-gradient-to-br ${d.gradient} border-2 border-[#0A0A0F] text-[8px] font-bold text-white flex items-center justify-center`}>
-                        {d.initials}
-                      </div>
+                      <img key={d.name} src={d.avatar} alt={d.name} className="w-6 h-6 rounded-full object-cover border-2 border-[#0A0A0F]" />
                     ))}
                     <div className="w-6 h-6 rounded-full bg-white/10 border-2 border-[#0A0A0F] text-[8px] font-medium text-gray-400 flex items-center justify-center">
                       +5

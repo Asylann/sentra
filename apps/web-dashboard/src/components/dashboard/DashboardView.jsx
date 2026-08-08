@@ -4,26 +4,32 @@ import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ShieldAlert, Zap, GitPullRequest, Activity, Server, Cpu, Database, XCircle, ArrowUpRight, Clock, AlertTriangle, Search, FileCode, Code2, Network, Bot, Coins } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useWorkspace } from '../../context/WorkspaceContext';
 import { useSentraWS } from '../../context/SentraWSContext';
-
-// No mock data - fetching real PR history from Postgres
 
 export default function DashboardView() {
   const { activePRs } = useSentraWS();
-  const { token, apiBase } = useAuth();
-  
+  const { fetchWithAuth, apiBase, token } = useAuth();
+  const { currentOrg, isCompanyWorkspace } = useWorkspace();
+
   const [metrics, setMetrics] = useState(null);
   const [prHistory, setPrHistory] = useState([]);
   const [apiPing, setApiPing] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!fetchWithAuth) return;
     const fetchData = async () => {
       try {
         const start = performance.now();
+
+        const prsUrl = (isCompanyWorkspace && currentOrg?.id)
+          ? `/api/v1/orgs/${currentOrg.id}/prs`
+          : '/api/v1/prs';
+
         const [metricsRes, prsRes] = await Promise.all([
-          fetch(`${apiBase}/api/v1/metrics`, { headers: { 'Authorization': `Bearer ${token}` } }),
-          fetch(`${apiBase}/api/v1/prs`, { headers: { 'Authorization': `Bearer ${token}` } })
+          fetchWithAuth('/api/v1/metrics'),
+          fetchWithAuth(prsUrl),
         ]);
         const end = performance.now();
         setApiPing(Math.round(end - start));
@@ -35,7 +41,7 @@ export default function DashboardView() {
         if (prsRes.ok) {
           const pData = await prsRes.json();
           const prs = pData.data || [];
-          
+
           const unique = new Map();
           for (const pr of prs) {
             const key = `${pr.repository_full_name}#${pr.pull_number}`;
@@ -52,7 +58,7 @@ export default function DashboardView() {
       }
     };
     fetchData();
-  }, [token, apiBase]);
+  }, [fetchWithAuth, isCompanyWorkspace, currentOrg?.id]);
 
   // Compute real failed PRs (Quality Score < 80)
   const failedPRs = useMemo(() => {

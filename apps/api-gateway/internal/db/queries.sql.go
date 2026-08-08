@@ -1072,14 +1072,20 @@ func (q *Queries) GetOrgPullRequestsByAuthor(ctx context.Context, arg GetOrgPull
 
 const getOrgLeaderboard = `-- name: GetOrgLeaderboard :many
 SELECT
-    author_login,
+    pr.author_login,
     COUNT(*) AS pr_count,
-    AVG(quality_score)::FLOAT8 AS avg_quality_score,
-    (AVG(quality_score) * LN(COUNT(*) + 1))::FLOAT8 AS performance_index
-FROM pull_requests
-WHERE organization_id = $1
-  AND quality_score IS NOT NULL
-GROUP BY author_login
+    COALESCE(AVG(pr.quality_score), 0)::FLOAT8 AS avg_quality_score,
+    (AVG(pr.quality_score) * LN(COUNT(*) + 1))::FLOAT8 AS performance_index
+FROM pull_requests pr
+WHERE (pr.organization_id = $1
+   OR pr.author_login IN (
+       SELECT u.login FROM organization_users ou
+       JOIN users u ON u.id = ou.user_id
+       WHERE ou.org_id = $1
+   ))
+  AND pr.analysis_status = 'completed'
+  AND pr.quality_score IS NOT NULL
+GROUP BY pr.author_login
 ORDER BY performance_index DESC
 `
 

@@ -390,13 +390,19 @@ LIMIT $2;
 
 -- name: GetOrgLeaderboard :many
 -- Engineering leaderboard: group by developer, count PRs, avg quality, performance index.
+-- Includes PRs directly linked to this org OR authored by any org member.
 SELECT
     pr.author_login,
     COUNT(pr.id)::int AS pr_count,
     COALESCE(AVG(pr.quality_score), 0)::float AS avg_quality_score,
     (COUNT(pr.id) * COALESCE(AVG(pr.quality_score), 50) / 100.0)::float AS performance_index
 FROM pull_requests pr
-WHERE pr.organization_id = $1
+WHERE (pr.organization_id = $1
+   OR pr.author_login IN (
+       SELECT u.login FROM organization_users ou
+       JOIN users u ON u.id = ou.user_id
+       WHERE ou.org_id = $1
+   ))
   AND pr.analysis_status = 'completed'
   AND pr.quality_score IS NOT NULL
 GROUP BY pr.author_login
