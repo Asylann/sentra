@@ -339,6 +339,199 @@ function B2BTeamSection() {
   );
 }
 
+function LeaderboardShowcase() {
+  const leaderboardData = [
+    { rank: 1, name: 'Alex K.', login: 'alexk', prs: 47, avgScore: 92, index: 4.18, avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face' },
+    { rank: 2, name: 'Sara M.', login: 'saram', prs: 38, avgScore: 89, index: 3.85, avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=face' },
+    { rank: 3, name: 'Kai R.', login: 'kair', prs: 52, avgScore: 78, index: 3.52, avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=80&h=80&fit=crop&crop=face' },
+    { rank: 4, name: 'Jordan L.', login: 'jordanl', prs: 29, avgScore: 95, index: 3.41, avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face' },
+    { rank: 5, name: 'Dev P.', login: 'devp', prs: 33, avgScore: 81, index: 2.97, avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face' },
+  ];
+
+  return (
+    <section className="py-32 px-4 relative overflow-hidden border-t border-white/[0.04]">
+      <div className="absolute inset-0 bg-[#010101]" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] bg-purple-600/[0.04] blur-[150px] rounded-full pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto relative z-10">
+        {/* Header */}
+        <div className="text-center mb-16">
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="text-sm font-medium text-purple-400 uppercase tracking-[0.2em] mb-4"
+          >
+            Team Metrics
+          </motion.p>
+          <motion.h2
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-[-0.03em] text-white mb-6"
+          >
+            Know who's{' '}
+            <span className="bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">shipping quality.</span>
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed"
+          >
+            Track performance across your engineering org. Quality scores, PR volume, and a performance index that rewards both speed and craftsmanship.
+          </motion.p>
+        </div>
+
+        {/* Leaderboard visualization */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.8, delay: 0.3 }}
+          className="relative max-w-4xl mx-auto"
+        >
+          <div className="relative bg-[#0A0A0F] border border-white/[0.08] rounded-2xl overflow-hidden shadow-2xl shadow-black/50">
+            {/* Window chrome */}
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-white/[0.06] bg-white/[0.02]">
+              <div className="flex gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
+                <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
+                <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
+              </div>
+              <div className="flex-1 flex justify-center">
+                <div className="px-4 py-1 rounded-md bg-white/[0.04] border border-white/[0.06] text-[11px] text-gray-500 font-mono">
+                  sentra.ai/dashboard/leaderboard
+                </div>
+              </div>
+            </div>
+
+            {/* Chart area - scatter plot mockup */}
+            <div className="p-6 border-b border-white/[0.04]">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <BarChart3 className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <span className="text-sm font-medium text-white">Performance Quadrant</span>
+                </div>
+                <div className="flex gap-3">
+                  <span className="flex items-center gap-1.5 text-[10px] text-gray-500">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" /> High Quality + Volume
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[10px] text-gray-500">
+                    <span className="w-2 h-2 rounded-full bg-indigo-400" /> High Quality
+                  </span>
+                </div>
+              </div>
+
+              {/* SVG scatter chart */}
+              <div className="relative h-[180px] bg-white/[0.01] rounded-lg border border-white/[0.04] overflow-hidden">
+                {/* Grid lines */}
+                <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+                  {[25, 50, 75].map(y => (
+                    <line key={`h-${y}`} x1="0%" y1={`${y}%`} x2="100%" y2={`${y}%`} stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+                  ))}
+                  {[25, 50, 75].map(x => (
+                    <line key={`v-${x}`} x1={`${x}%`} y1="0%" x2={`${x}%`} y2="100%" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+                  ))}
+                </svg>
+
+                {/* Axis labels */}
+                <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[9px] text-gray-600">PR Volume →</span>
+                <span className="absolute left-1 top-1/2 -translate-y-1/2 -rotate-90 text-[9px] text-gray-600">Avg Quality →</span>
+
+                {/* Scatter dots */}
+                {leaderboardData.map((dev, i) => {
+                  const x = (dev.prs / 60) * 85 + 8;
+                  const y = 100 - ((dev.avgScore - 50) / 50) * 85 - 8;
+                  const color = dev.avgScore >= 85 && dev.prs > 35 ? '#34d399' : dev.avgScore >= 85 ? '#818cf8' : '#fbbf24';
+                  return (
+                    <motion.div
+                      key={dev.login}
+                      initial={{ opacity: 0, scale: 0 }}
+                      whileInView={{ opacity: 1, scale: 1 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: 0.6 + i * 0.12, type: "spring", bounce: 0.4 }}
+                      className="absolute"
+                      style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' }}
+                    >
+                      <div className="relative group">
+                        <div className="w-3 h-3 rounded-full shadow-lg" style={{ backgroundColor: color, boxShadow: `0 0 10px ${color}50` }} />
+                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-black/80 border border-white/10 text-[9px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                          {dev.name}
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Ranked list */}
+            <div className="p-6">
+              {/* Header row */}
+              <div className="grid grid-cols-[40px_1fr_80px_120px_80px] items-center px-3 py-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-600">
+                <span>Rank</span>
+                <span>Developer</span>
+                <span className="text-center">PRs</span>
+                <span className="text-center">Avg Quality</span>
+                <span className="text-center">Index</span>
+              </div>
+
+              {/* Rows */}
+              {leaderboardData.map((dev, i) => {
+                const accent = i === 0 ? 'text-amber-400 bg-amber-500/10 border-amber-500/25'
+                  : i === 1 ? 'text-zinc-300 bg-zinc-400/10 border-zinc-400/25'
+                  : i === 2 ? 'text-orange-400 bg-orange-500/10 border-orange-500/25'
+                  : 'text-zinc-600 bg-white/[0.03] border-white/[0.06]';
+                return (
+                  <motion.div
+                    key={dev.login}
+                    initial={{ opacity: 0, x: -20 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.8 + i * 0.1, duration: 0.4 }}
+                    className="grid grid-cols-[40px_1fr_80px_120px_80px] items-center px-3 py-2.5 border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.02] transition-colors rounded-lg"
+                  >
+                    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold border ${accent}`}>
+                      {dev.rank}
+                    </span>
+                    <div className="flex items-center gap-2.5">
+                      <img src={dev.avatar} alt={dev.name} className="w-7 h-7 rounded-full object-cover ring-1 ring-white/10" />
+                      <span className="text-sm font-medium text-gray-200">{dev.name}</span>
+                    </div>
+                    <span className="text-center text-sm font-mono text-gray-400">{dev.prs}</span>
+                    <div className="flex items-center gap-2 px-2">
+                      <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          whileInView={{ width: `${dev.avgScore}%` }}
+                          viewport={{ once: true }}
+                          transition={{ delay: 1.0 + i * 0.1, duration: 0.8, ease: "easeOut" }}
+                          className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-indigo-400"
+                        />
+                      </div>
+                      <span className="text-[11px] font-mono text-gray-400 w-6 text-right">{dev.avgScore}</span>
+                    </div>
+                    <span className="text-center text-sm font-mono text-emerald-400/80">{dev.index.toFixed(2)}</span>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Glow effect */}
+          <div className="absolute -inset-4 -z-10 bg-gradient-to-b from-purple-500/[0.04] via-transparent to-indigo-500/[0.03] rounded-3xl blur-2xl" />
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
 export default function LandingPage() {
   const { isAuthenticated } = useAuth();
 
@@ -439,7 +632,15 @@ export default function LandingPage() {
                         <Code2 className="w-4 h-4 text-emerald-400" />
                         <span className="font-semibold text-emerald-100 text-xs tracking-wide uppercase">AI Auto-Fix</span>
                       </div>
-                      <p className="text-xs text-gray-400 font-sans leading-relaxed">Migrated to HMAC verification with <span className="text-emerald-300 font-mono bg-white/5 px-1 py-0.5 rounded border border-white/5">config.Secret</span>.</p>
+                      <p className="text-xs text-gray-400 font-sans leading-relaxed mb-3">Migrated to HMAC verification with <span className="text-emerald-300 font-mono bg-white/5 px-1 py-0.5 rounded border border-white/5">config.Secret</span>.</p>
+                      <motion.button
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 rounded-md text-emerald-300 text-[11px] font-semibold transition-colors"
+                      >
+                        <CheckCircle2 className="w-3 h-3" />
+                        Apply suggestion
+                      </motion.button>
                     </motion.div>
                   </div>
                 </div>
@@ -454,10 +655,10 @@ export default function LandingPage() {
                   transition={{ duration: 0.8, delay: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
                   className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-[-0.03em] text-white mb-6 leading-[1.05]"
                 >
-                  Code reviews were hard.{' '}
+                  The intelligent gatekeeper{' '}
                   <span className="relative">
                     <span className="relative z-10 bg-gradient-to-r from-indigo-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
-                      Now they're not.
+                      for your engineering team.
                     </span>
                     <motion.span
                       className="absolute -inset-x-2 -inset-y-1 bg-indigo-500/10 rounded-lg -z-0"
@@ -499,6 +700,9 @@ export default function LandingPage() {
 
         {/* ===== B2B TEAM SECTION ===== */}
         <B2BTeamSection />
+
+        {/* ===== LEADERBOARD METRICS ===== */}
+        <LeaderboardShowcase />
 
         {/* ===== SCROLL TEXT REVEAL ===== */}
         <section className="py-40 px-4 relative">
@@ -677,9 +881,8 @@ export default function LandingPage() {
               Trusted at scale.
             </motion.h2>
 
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
               {[
-                { value: 10000, suffix: '+', label: 'PRs Reviewed Daily', icon: GitMerge },
                 { value: 90, suffix: 's', prefix: '< ', label: 'Average Review Time', icon: Zap },
                 { value: 94, suffix: '%', label: 'Accuracy Rate', icon: Eye },
                 { value: 60, suffix: '%', label: 'Fewer Incidents', icon: Lock },
@@ -700,88 +903,6 @@ export default function LandingPage() {
                   <p className="text-xs md:text-sm text-gray-500 font-medium">{stat.label}</p>
                 </motion.div>
               ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ===== FEATURE GRID ===== */}
-        <section className="py-32 px-4 relative">
-          <GlowBeam />
-          <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 gap-4">
-              <div>
-                <motion.p
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5 }}
-                  className="text-sm font-medium text-indigo-400 uppercase tracking-widest mb-4"
-                >
-                  Features
-                </motion.p>
-                <motion.h2
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.6, delay: 0.1 }}
-                  className="text-4xl md:text-5xl font-bold tracking-tight text-white"
-                >
-                  Faster reviews.<br/>Better code.
-                </motion.h2>
-              </div>
-              <Link to="/samples" className="text-indigo-400 hover:text-indigo-300 text-sm font-medium flex items-center gap-1 transition-colors">
-                See a sample review <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <PerspectiveCard delay={0} className="h-full">
-                <div className="p-8 bg-[#050505] rounded-2xl border border-white/[0.06] hover:border-indigo-500/20 transition-all duration-500 flex flex-col justify-between h-80 relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-indigo-500/10 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                  <div className="relative z-10 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center">
-                      <Zap className="w-5 h-5 text-indigo-400" />
-                    </div>
-                    <div className="h-px flex-1 bg-gradient-to-r from-indigo-500/20 to-transparent" />
-                  </div>
-                  <div className="relative z-10">
-                    <h3 className="text-xl font-bold text-white mb-2">Catch fast. Fix fast.</h3>
-                    <p className="text-gray-400 text-sm leading-relaxed">1-click commits for easy fixes and a "Fix with AI" button for complex refactors. No context switching.</p>
-                  </div>
-                </div>
-              </PerspectiveCard>
-
-              <PerspectiveCard delay={0.15} className="h-full">
-                <div className="p-8 bg-[#050505] rounded-2xl border border-white/[0.06] hover:border-purple-500/20 transition-all duration-500 flex flex-col justify-between h-80 relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-purple-500/10 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                  <div className="relative z-10 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-purple-500/10 border border-purple-500/30 flex items-center justify-center">
-                      <Eye className="w-5 h-5 text-purple-400" />
-                    </div>
-                    <div className="h-px flex-1 bg-gradient-to-r from-purple-500/20 to-transparent" />
-                  </div>
-                  <div className="relative z-10">
-                    <h3 className="text-xl font-bold text-white mb-2">TL;DR for your diff.</h3>
-                    <p className="text-gray-400 text-sm leading-relaxed">Summary of changes, a walkthrough, and an architectural diagram. Understand any PR in 30 seconds.</p>
-                  </div>
-                </div>
-              </PerspectiveCard>
-
-              <PerspectiveCard delay={0.3} className="h-full">
-                <div className="p-8 bg-[#050505] rounded-2xl border border-white/[0.06] hover:border-rose-500/20 transition-all duration-500 flex flex-col justify-between h-80 relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-rose-500/10 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                  <div className="relative z-10 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-rose-500/10 border border-rose-500/30 flex items-center justify-center">
-                      <ShieldAlert className="w-5 h-5 text-rose-400" />
-                    </div>
-                    <div className="h-px flex-1 bg-gradient-to-r from-rose-500/20 to-transparent" />
-                  </div>
-                  <div className="relative z-10">
-                    <h3 className="text-xl font-bold text-white mb-2">Find bugs. Skip noise.</h3>
-                    <p className="text-gray-400 text-sm leading-relaxed">Real vulnerabilities. Real bugs. Zero false positives from formatting rules. Signal, not noise.</p>
-                  </div>
-                </div>
-              </PerspectiveCard>
             </div>
           </div>
         </section>
