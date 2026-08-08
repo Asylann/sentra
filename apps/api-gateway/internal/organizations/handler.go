@@ -47,7 +47,7 @@ func (h *Handler) GetOrgPRs(c *gin.Context) {
 			for _, pr := range result {
 				if _, dup := seen[pr.ID]; !dup {
 					seen[pr.ID] = struct{}{}
-					merged = append(merged, pr)
+					merged = append(merged, db.GetOrgPullRequestsRow(pr))
 				}
 			}
 		}
