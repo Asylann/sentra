@@ -40,14 +40,16 @@ class PRReviewAdapter:
         comments: List[ReviewComment] = []
         for finding in suggestable:
             body = self._format_suggestion_body_entity(finding)
-            comments.append(
-                ReviewComment(
-                    path=finding.file_path,
-                    line=finding.line_start,
-                    side="RIGHT",
-                    body=body,
-                )
+            line_end = finding.line_end if finding.line_end else finding.line_start
+            comment = ReviewComment(
+                path=finding.file_path,
+                line=line_end,
+                side="RIGHT",
+                body=body,
             )
+            if finding.line_start != line_end:
+                comment.start_line = finding.line_start
+            comments.append(comment)
 
         await self._post_review(repo, pull_number, head_sha, installation_id, comments)
 
@@ -69,14 +71,17 @@ class PRReviewAdapter:
             if not suggestion_code:
                 continue
             body = self._format_suggestion_body_dict(finding)
-            comments.append(
-                ReviewComment(
-                    path=finding.get('file_path', 'unknown'),
-                    line=finding.get('line_start', 1),
-                    side="RIGHT",
-                    body=body,
-                )
+            line_start = finding.get('line_start', 1)
+            line_end = finding.get('line_end', line_start)
+            comment = ReviewComment(
+                path=finding.get('file_path', 'unknown'),
+                line=line_end,
+                side="RIGHT",
+                body=body,
             )
+            if line_start != line_end:
+                comment.start_line = line_start
+            comments.append(comment)
 
         await self._post_review(repo_full_name, pull_number, head_sha, installation_id, comments)
 

@@ -87,7 +87,22 @@ class BedrockClaudeClient:
                                     "type": "object",
                                     "properties": {
                                         "file_path": {"type": "string"},
-                                        "line_start": {"type": "integer"},
+                                        "line_start": {
+                                            "type": "integer",
+                                            "description": (
+                                                "Line number in the NEW file (right-side / '+' lines in the diff). "
+                                                "MUST reference a line that was actually ADDED or MODIFIED in this PR. "
+                                                "Context lines (lines starting with space in the diff) are NOT valid targets."
+                                            )
+                                        },
+                                        "line_end": {
+                                            "type": "integer",
+                                            "description": (
+                                                "Last affected line number in the new file. Same as line_start for "
+                                                "single-line issues. For multi-line suggestions, this is the last line "
+                                                "that will be REPLACED by suggestion_code."
+                                            )
+                                        },
                                         "category": {"type": "string", "enum": ["Security", "Architecture", "Infrastructure", "Bug", "Style"]},
                                         "severity": {
                                             "type": "string",
@@ -134,7 +149,7 @@ class BedrockClaudeClient:
                                             )
                                         }
                                     },
-                                    "required": ["file_path", "line_start", "category", "severity", "title", "description", "suggested_fix", "suggestion_code"]
+                                    "required": ["file_path", "line_start", "line_end", "category", "severity", "title", "description", "suggested_fix", "suggestion_code"]
                                 }
                             }
                         },

@@ -66,11 +66,17 @@ REVIEW_TOOL_SCHEMA = {
                             },
                             "line_start": {
                                 "type": "integer",
-                                "description": "First affected line number in the new (right-side) file."
+                                "description": (
+                                    "First affected line number in the NEW file (right-side / '+' lines in the diff). "
+                                    "MUST reference a line that was ADDED or MODIFIED in this PR — NOT a context line."
+                                )
                             },
                             "line_end": {
                                 "type": "integer",
-                                "description": "Last affected line number (same as line_start for single-line issues)."
+                                "description": (
+                                    "Last affected line number in the new file. Same as line_start for single-line issues. "
+                                    "For multi-line suggestions, this is the last line that will be REPLACED by suggestion_code."
+                                )
                             },
                             "category": {
                                 "type": "string",
