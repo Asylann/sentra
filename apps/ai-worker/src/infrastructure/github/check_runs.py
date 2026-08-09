@@ -85,43 +85,48 @@ class GitHubCheckRunsAPI:
             "Accept": "application/vnd.github.v3+json",
         }
 
-        # 1. Transform internal schema to GitHub Annotation format
+        # 1. Transform internal schema to GitHub Annotation format.
+        # IMPORTANT: Check Run annotation `message` is PLAIN TEXT — GitHub never
+        # renders markdown in annotations. Keep it clean and human-readable.
         annotations = []
         for finding in findings:
-            line = finding.get('line_start', 1)
-            if line < 1:
-                line = 1
+            line_start = finding.get('line_start', 1)
+            if line_start < 1:
+                line_start = 1
+            line_end = finding.get('line_end', line_start)
+            if not line_end or line_end < line_start:
+                line_end = line_start
 
             severity = finding.get('severity', 'INFO').upper()
             category = finding.get('category', '')
             description = finding.get('description', '')
             suggested_fix = finding.get('suggested_fix', '').strip()
 
-            severity_label = f"**[{severity}]**" + (f" `{category}`" if category else "")
-
+            # Plain text — NO markdown bold/code fences (they appear literally in annotations)
+            category_part = f" [{category}]" if category else ""
             message_parts = [
-                severity_label,
+                f"[{severity}]{category_part}",
                 "",
                 description,
             ]
 
             if suggested_fix:
-                # Strip any outer fenced block the LLM may have added so we always
-                # control the fence language. Re-wrap as a diff block for syntax highlighting.
+                # Strip any markdown fences the LLM may have added — show as plain diff text
                 inner = suggested_fix
                 if inner.startswith("```"):
-                    # Remove the opening fence line and closing fence
-                    lines = inner.splitlines()
-                    closing = next((i for i in range(len(lines) - 1, 0, -1) if lines[i].strip() == "```"), None)
+                    lines_of_fix = inner.splitlines()
+                    closing = next(
+                        (i for i in range(len(lines_of_fix) - 1, 0, -1) if lines_of_fix[i].strip() == "```"),
+                        None,
+                    )
                     if closing:
-                        inner = "\n".join(lines[1:closing])
-
-                message_parts += ["", "**Suggested Fix**", "", f"```diff\n{inner}\n```"]
+                        inner = "\n".join(lines_of_fix[1:closing])
+                message_parts += ["", "Suggested Fix:", inner]
 
             annotations.append({
                 "path": finding.get('file_path', 'unknown_file'),
-                "start_line": line,
-                "end_line": line,
+                "start_line": line_start,
+                "end_line": line_end,
                 "annotation_level": self._map_severity(severity),
                 "title": finding.get('title', 'Analysis Finding'),
                 "message": "\n".join(message_parts),
