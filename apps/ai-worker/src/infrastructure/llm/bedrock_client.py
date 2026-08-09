@@ -154,31 +154,18 @@ class BedrockClaudeClient:
                                         "suggested_fix": {
                                             "type": "string",
                                             "description": (
-                                                "A unified diff patch showing ONLY the changed lines. "
-                                                "Format exactly like this — no code fences, no markdown, plain text only:\n"
-                                                "-old line as it appears in the file\n"
-                                                "+new corrected line\n"
-                                                "Rules: the '-' line must be copied EXACTLY from the file (same spacing, same characters). "
-                                                "The '+' line must show the corrected version. "
-                                                "CRITICAL: Do NOT output identical text on both '-' and '+' lines — "
-                                                "if you cannot produce a DIFFERENT '+' line, leave this field as empty string. "
-                                                "Do NOT wrap in triple backticks. "
-                                                "Do NOT invent lines that do not exist in the diff. "
-                                                "Do NOT rename standard SQL column names (user_id, created_at, etc). "
-                                                "Example for a typo fix: -FROM nginx:1.25-alp\\n+FROM nginx:1.25-alpine"
+                                                "DEPRECATED: Prefer `suggestion_code` instead. Only use this for complex multi-line "
+                                                "diffs where a direct replacement is impossible."
                                             )
                                         },
                                         "suggestion_code": {
                                             "type": "string",
                                             "description": (
-                                                "Exact replacement source code for the affected line(s). "
-                                                "This is rendered inside a GitHub ```suggestion fence for one-click apply. "
-                                                "IMPORTANT: You MUST populate this field for ANY finding where the fix is a "
-                                                "simple text replacement (typos, wrong paths, invalid ports, misspelled names, "
-                                                "truncated strings, wrong image tags). These are unambiguous single-line fixes. "
-                                                "Only leave empty for complex refactors or design-level issues that require "
-                                                "multi-file changes. The suggestion_code must be DIFFERENT from the original. "
-                                                "Include ONLY the replacement text — no diff markers, no fences, no context lines."
+                                                "Exact replacement source code for the affected line(s) defined by line_start and line_end. "
+                                                "This is rendered inside a GitHub ```suggestion fence for one-click apply, which is HIGHLY DESIRED. "
+                                                "IMPORTANT: You MUST populate this field for almost all findings to give the user a clickable fix button. "
+                                                "Provide the pure code replacement without ANY diff markers (+/-) or markdown fences. "
+                                                "The suggestion_code must be DIFFERENT from the original code."
                                             )
                                         }
                                     },
