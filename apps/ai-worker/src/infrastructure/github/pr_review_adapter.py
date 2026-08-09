@@ -188,3 +188,41 @@ class PRReviewAdapter:
             body += f"\n\n**Suggested fix:**\n```diff\n{inner}\n```"
 
         return body
+
+    async def approve_pr(
+        self,
+        repo_full_name: str,
+        pull_number: int,
+        head_sha: str,
+        installation_id: int,
+    ) -> bool:
+        """
+        Submits an APPROVE review on the PR.
+        Called automatically when quality_score == 100 and auto_approve_enabled is True.
+        Returns True if successful.
+        """
+        try:
+            review_id = await self._api.create_review_with_suggestions(
+                repo_full_name=repo_full_name,
+                pull_number=pull_number,
+                commit_id=head_sha,
+                comments=[],  # APPROVE reviews don't require inline comments
+                body=(
+                    "## ✅ Sentra AI Auto-Approve\n\n"
+                    "This pull request achieved a **perfect Quality Score of 100/100** "
+                    "with zero findings detected. As per your organization's Auto-Approve "
+                    "policy, this PR is being automatically approved.\n\n"
+                    "> *Powered by Sentra AI — automated security and quality analysis.*"
+                ),
+                installation_id=installation_id,
+                event="APPROVE",
+            )
+            if review_id:
+                logger.info(
+                    "Auto-approved PR %s#%d (review_id=%s)", repo_full_name, pull_number, review_id
+                )
+                return True
+        except Exception as e:
+            logger.error("Failed to auto-approve PR %s#%d: %s", repo_full_name, pull_number, e)
+        return False
+
