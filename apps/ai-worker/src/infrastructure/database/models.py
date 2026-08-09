@@ -7,6 +7,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
+from sqlalchemy.dialects import postgresql
 
 class Base(DeclarativeBase):
     """SQLAlchemy 2.0 Declarative Base"""
@@ -37,6 +38,8 @@ class Organization(Base):
     plan_tier: Mapped[str] = mapped_column(Text, nullable=False, default='free')
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     quality_gate_threshold: Mapped[int] = mapped_column(Integer, nullable=False, default=80)
+    # Maximum PR analyses per developer per day (0 = unlimited)
+    daily_pr_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=7)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -172,6 +175,26 @@ class ReviewFinding(Base):
     model_id: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     pull_request: Mapped["PullRequest"] = relationship("PullRequest", back_populates="findings")
+
+class RepositoryPolicy(Base):
+    """Per-org or per-repo analysis configuration. AI Worker reads this to customize behavior."""
+    __tablename__ = "repository_policies"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    repository_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("repositories.id", ondelete="CASCADE"), nullable=True)
+    organization_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    quality_gate_threshold: Mapped[int] = mapped_column(Integer, nullable=False, default=80)
+    block_on_critical: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    enabled_categories: Mapped[List[str]] = mapped_column(postgresql.ARRAY(Text()), nullable=False, default=['Security', 'Complexity', 'Architecture', 'Style'])
+    ignore_paths: Mapped[List[str]] = mapped_column(postgresql.ARRAY(Text()), nullable=False, default=[])
+    custom_rules_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    max_findings_per_pr: Mapped[int] = mapped_column(Integer, nullable=False, default=50)
+    # Auto-approve PRs that score 100/100
+    auto_approve_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # AI analysis focus categories (subset of all categories the AI should prioritize)
+    analysis_focus: Mapped[List[str]] = mapped_column(postgresql.ARRAY(Text()), nullable=False, default=['Security', 'Complexity', 'Performance', 'Style'])
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
 
 class DoraDailyRollup(Base):
     __tablename__ = "dora_daily_rollup"

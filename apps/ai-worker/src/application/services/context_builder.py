@@ -3,6 +3,21 @@ from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+# Maps user-facing focus names (from Settings UI) to the categories the LLM understands
+FOCUS_CATEGORY_MAP = {
+    "Security Vulnerabilities": "Security",
+    "Performance/Big-O":        "Performance",
+    "Code Style/Formatting":    "Style",
+    "Documentation Check":      "Documentation",
+    # Internal categories (direct matches)
+    "Security":       "Security",
+    "Complexity":     "Complexity",
+    "Architecture":   "Architecture",
+    "Style":          "Style",
+    "Performance":    "Performance",
+}
+
+
 class RAGContextBuilder:
     """
     Formats retrieved RAG data strictly into XML tags for Claude 3.
@@ -30,7 +45,7 @@ class RAGContextBuilder:
             return "<developer_profile>\nNo historical data available.\n</developer_profile>"
 
         weaknesses = metrics.get("historical_weaknesses", [])
-        weaknesses_str = ", ".join(weaknesses) if weaknesses else "None"
+        weaknesses_str = ", ".join(weaknesses) if weaknesses else "None identified yet"
         prs = metrics.get("total_prs_analyzed", 0)
 
         return (
@@ -42,12 +57,52 @@ class RAGContextBuilder:
         )
 
     @classmethod
-    def assemble_full_rag_context(cls, policies: List[str], developer_metrics: Dict[str, Any]) -> str:
+    def build_analysis_focus_xml(cls, analysis_focus: List[str]) -> str:
+        """
+        Builds an <analysis_focus> XML block instructing the LLM which categories
+        the organization has configured as priorities. Categories NOT in this list
+        should still be reported if critical, but the LLM should deprioritize them.
+        """
+        if not analysis_focus:
+            return ""  # No focus restriction — analyze everything equally
+
+        # Normalize category names
+        normalized = []
+        for f in analysis_focus:
+            mapped = FOCUS_CATEGORY_MAP.get(f, f)
+            if mapped not in normalized:
+                normalized.append(mapped)
+
+        focus_str = ", ".join(normalized)
+        return (
+            "<analysis_focus>\n"
+            f"The organization has configured the following analysis priorities: {focus_str}.\n"
+            "Focus your analysis effort on these categories. For each category in this list:\n"
+            + "\n".join(f"  - {cat}: Look especially carefully for issues in this area." for cat in normalized)
+            + "\n"
+            "You may still report issues from other categories if they are CRITICAL or HIGH severity, "
+            "but do not generate LOW or INFO findings for categories not listed above.\n"
+            "</analysis_focus>"
+        )
+
+    @classmethod
+    def assemble_full_rag_context(
+        cls,
+        policies: List[str],
+        developer_metrics: Dict[str, Any],
+        analysis_focus: List[str] | None = None,
+    ) -> str:
         """
         Assembles the complete System Prompt RAG context block.
+
+        Args:
+            policies:          Custom organization rules to inject.
+            developer_metrics: Developer history for personalized review.
+            analysis_focus:    Categories the org wants the AI to focus on (from Settings UI).
         """
         org_xml = cls.build_organization_rules_xml(policies)
         dev_xml = cls.build_developer_profile_xml(developer_metrics)
+        focus_xml = cls.build_analysis_focus_xml(analysis_focus or [])
 
         severity_guide = (
             "<severity_definitions>\n"
@@ -103,4 +158,8 @@ class RAGContextBuilder:
             "</severity_definitions>"
         )
 
-        return f"{severity_guide}\n\n{org_xml}\n\n{dev_xml}"
+        parts = [severity_guide, org_xml, dev_xml]
+        if focus_xml:
+            parts.append(focus_xml)
+
+        return "\n\n".join(parts)

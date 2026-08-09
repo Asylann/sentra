@@ -91,6 +91,64 @@ class AnalyzePRUseCase:
             logger.error("Missing installation_id in payload, cannot authenticate as GitHub App")
             return
 
+        # ──────────────────────────────────────────────────────────────────────
+        # Step 0: Load Org Policy Settings from DB
+        # Fetches: quality_gate_threshold, daily_pr_limit, custom_rules_text,
+        #          analysis_focus, auto_approve_enabled.
+        # ──────────────────────────────────────────────────────────────────────
+        async with self.db_session_factory() as policy_session:
+            self.rag_repo.session = policy_session
+            org_policy = await self.rag_repo.get_org_policy(
+                org_id=org_id,
+                repo_id=None  # Use org-wide policy from Settings UI
+            )
+
+        quality_gate_threshold = org_policy.get("quality_gate_threshold", 80)
+        daily_pr_limit = org_policy.get("daily_pr_limit", 7)
+        analysis_focus = org_policy.get("analysis_focus", [])
+        auto_approve_enabled = org_policy.get("auto_approve_enabled", False)
+        custom_rules_text = org_policy.get("custom_rules_text", "")
+
+        logger.info(
+            f"Org policy loaded: threshold={quality_gate_threshold}, "
+            f"daily_limit={daily_pr_limit}, focus={analysis_focus}, "
+            f"auto_approve={auto_approve_enabled}"
+        )
+
+        # ──────────────────────────────────────────────────────────────────────
+        # Step 0b: Enforce Daily PR Limit per developer
+        # If the developer has already analyzed >= daily_pr_limit PRs today,
+        # abort early with a neutral conclusion and a friendly message.
+        # ──────────────────────────────────────────────────────────────────────
+        if daily_pr_limit > 0 and org_id:
+            async with self.db_session_factory() as count_session:
+                self.rag_repo.session = count_session
+                prs_today = await self.rag_repo.get_pr_count_today(
+                    org_id=org_id,
+                    author_login=sender_login
+                )
+
+            if prs_today >= daily_pr_limit:
+                logger.warning(
+                    f"Daily PR limit reached for {sender_login}: "
+                    f"{prs_today}/{daily_pr_limit}. Skipping analysis."
+                )
+                # Create a neutral check run to surface the limit message in GitHub UI
+                check_run_id = await self.check_runs_api.create_check_run(
+                    repo_full_name, head_sha, installation_id
+                )
+                limit_msg = (
+                    f"## ⏳ Daily Analysis Limit Reached\n\n"
+                    f"**{sender_login}** has already had **{prs_today}** PRs analyzed today "
+                    f"(limit: **{daily_pr_limit}**)\n\n"
+                    f"Analysis will resume tomorrow (UTC). An admin can adjust this limit "
+                    f"in the Sentra Settings → Security Policies."
+                )
+                await self.check_runs_api.complete_check_run(
+                    repo_full_name, check_run_id, "neutral", limit_msg, [], installation_id
+                )
+                return
+
         # Step 1: Create GitHub Check Run (in_progress)
         check_run_id = await self.check_runs_api.create_check_run(repo_full_name, head_sha, installation_id)
         all_findings = []
@@ -181,9 +239,23 @@ class AnalyzePRUseCase:
             if final_diff_prompt.strip():
                 # Step 6: RAG Context Retrieval
                 logger.info("Step 6: Retrieving RAG Context (Policies & Developer Metrics)")
-                policies = await self.rag_repo.get_relevant_policies(repo_id, final_diff_prompt)
-                dev_metrics = await self.rag_repo.get_developer_metrics(sender_login)
-                system_prompt = RAGContextBuilder.assemble_full_rag_context(policies, dev_metrics)
+                async with self.db_session_factory() as rag_session:
+                    self.rag_repo.session = rag_session
+                    policies = await self.rag_repo.get_relevant_policies(repo_id, final_diff_prompt)
+                    dev_metrics = await self.rag_repo.get_developer_metrics(sender_login)
+
+                # Prepend custom_rules_text from org settings if present
+                if custom_rules_text and custom_rules_text.strip():
+                    custom_lines = [
+                        line.strip()
+                        for line in custom_rules_text.splitlines()
+                        if line.strip()
+                    ]
+                    policies = custom_lines + policies
+
+                system_prompt = RAGContextBuilder.assemble_full_rag_context(
+                    policies, dev_metrics, analysis_focus=analysis_focus
+                )
                 
                 # Step 7: AWS Bedrock Claude 3 Inference (Level 2)
                 logger.info("Step 7: Executing AWS Bedrock Claude 3.5 Sonnet Inference")
@@ -192,9 +264,11 @@ class AnalyzePRUseCase:
             else:
                 logger.info("No actionable code changes found after pruning. Skipping LLM analysis.")
 
-            # Step 8: Aggregate and Score
-            logger.info("Step 8: Calculating Final Quality Score")
-            quality_score, conclusion = QualityScorer.evaluate(all_findings)
+            # Step 8: Aggregate and Score (using org's quality_gate_threshold)
+            logger.info(f"Step 8: Calculating Final Quality Score (threshold={quality_gate_threshold})")
+            quality_score, conclusion = QualityScorer.evaluate(
+                all_findings, threshold=quality_gate_threshold
+            )
 
             counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}
             for f in all_findings:
@@ -267,8 +341,16 @@ class AnalyzePRUseCase:
             await self.check_runs_api.complete_check_run(
                 repo_full_name, check_run_id, conclusion, summary, annotation_only_findings, installation_id
             )
-            
-            # (Note: Redis "completed" publish moved to Step 11 after DB persistence)
+
+            # Step 9c: Auto-Approve if perfect score and setting is enabled
+            if auto_approve_enabled and quality_score == 100 and conclusion == "success":
+                logger.info("Step 9c: Auto-approving PR (perfect score + auto_approve_enabled)")
+                await self.pr_review_adapter.approve_pr(
+                    repo_full_name=repo_full_name,
+                    pull_number=pr_number,
+                    head_sha=head_sha,
+                    installation_id=installation_id,
+                )
             
             # Step 10: Persist to Postgres
             logger.info("Step 10: Persisting analysis results to Postgres Database")

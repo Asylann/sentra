@@ -7,6 +7,9 @@ class QualityScorer:
     """
     Aggregates all findings (Deterministic + LLM) and calculates the definitive Quality Score.
     Controls the final GitHub Check Run conclusion.
+
+    The threshold parameter (default 80) comes from the organization's quality_gate_threshold
+    setting, allowing admins to make the gate more or less strict via the Settings UI.
     """
 
     SEVERITY_WEIGHTS = {
@@ -18,11 +21,20 @@ class QualityScorer:
     }
 
     @classmethod
-    def evaluate(cls, findings: List[Dict[str, Any]]) -> Tuple[int, str]:
+    def evaluate(
+        cls,
+        findings: List[Dict[str, Any]],
+        threshold: int = 80,
+    ) -> Tuple[int, str]:
         """
         Calculates QS = max(0, 100 - SUM(weight) - volume_penalty).
         Returns (quality_score, conclusion).
-        Conclusion is 'failure' if QS < 80 OR ANY CRITICAL finding is present.
+
+        Args:
+            findings:  All findings from deterministic + LLM scanners.
+            threshold: The minimum score to pass (from org quality_gate_threshold setting).
+                       PRs scoring below this threshold receive conclusion='failure'.
+                       Range: 0 (permissive) – 100 (strictest).
         """
         total_deduction = 0
         has_critical = False
@@ -45,12 +57,15 @@ class QualityScorer:
 
         quality_score = max(0, 100 - total_deduction)
 
-        # Merge gate logic: fail if score < 80, or any CRITICAL/HIGH present
+        # Merge gate logic: fail if score < threshold, or any CRITICAL/HIGH present
         has_high_or_critical = has_critical or counts.get("HIGH", 0) > 0
-        if quality_score < 80 or has_high_or_critical:
+        if quality_score < threshold or has_high_or_critical:
             conclusion = "failure"
         else:
             conclusion = "success"
 
-        logger.info(f"Quality Score evaluated: QS={quality_score}, conclusion={conclusion}, volume_penalty={volume_penalty}")
+        logger.info(
+            f"Quality Score evaluated: QS={quality_score}, threshold={threshold}, "
+            f"conclusion={conclusion}, volume_penalty={volume_penalty}"
+        )
         return quality_score, conclusion
