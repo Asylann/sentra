@@ -35,33 +35,31 @@ def upgrade() -> None:
         )
     )
 
-    # 2. Add auto_approve_enabled to repository_policies
-    # First check if the table exists (it may not yet in all envs)
-    op.add_column(
+    # 2. Create the repository_policies table (it was missing from previous migrations)
+    # This table handles both the core config and the new settings
+    op.create_table(
         'repository_policies',
-        sa.Column(
-            'auto_approve_enabled',
-            sa.Boolean(),
-            nullable=False,
-            server_default='false'
-        )
-    )
-
-    # 3. Add analysis_focus to repository_policies
-    # Stores the set of categories the AI should focus on.
-    # Default includes all four standard categories.
-    op.add_column(
-        'repository_policies',
-        sa.Column(
-            'analysis_focus',
-            postgresql.ARRAY(sa.Text()),
-            nullable=False,
-            server_default="ARRAY['Security','Complexity','Performance','Style']::TEXT[]"
-        )
+        sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
+        sa.Column('repository_id', sa.BigInteger(), nullable=True),
+        sa.Column('organization_id', sa.BigInteger(), nullable=False),
+        sa.Column('quality_gate_threshold', sa.Integer(), server_default='80', nullable=False),
+        sa.Column('block_on_critical', sa.Boolean(), server_default='true', nullable=False),
+        sa.Column('enabled_categories', postgresql.ARRAY(sa.Text()), server_default="ARRAY['Security', 'Complexity', 'Architecture', 'Style']::TEXT[]", nullable=False),
+        sa.Column('ignore_paths', postgresql.ARRAY(sa.Text()), server_default="ARRAY[]::TEXT[]", nullable=False),
+        sa.Column('custom_rules_text', sa.Text(), nullable=True),
+        sa.Column('max_findings_per_pr', sa.Integer(), server_default='50', nullable=False),
+        # New Settings fields
+        sa.Column('auto_approve_enabled', sa.Boolean(), server_default='false', nullable=False),
+        sa.Column('analysis_focus', postgresql.ARRAY(sa.Text()), server_default="ARRAY['Security','Complexity','Performance','Style']::TEXT[]", nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+        sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['repository_id'], ['repositories.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('repository_id', 'organization_id')
     )
 
 
 def downgrade() -> None:
-    op.drop_column('repository_policies', 'analysis_focus')
-    op.drop_column('repository_policies', 'auto_approve_enabled')
+    op.drop_table('repository_policies')
     op.drop_column('organizations', 'daily_pr_limit')
