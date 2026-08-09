@@ -45,7 +45,7 @@ class BedrockClaudeClient:
             client_kwargs["aws_secret_access_key"] = aws_secret_access_key
             
         self.client = boto3.client("bedrock-runtime", **client_kwargs)
-        self.model_id = "amazon.nova-pro-v1:0"
+        self.model_id = "us.anthropic.claude-sonnet-4-5"
         
         # ThreadPool for isolating blocking boto3 calls from the asyncio loop
         self._executor = ThreadPoolExecutor(max_workers=5)
@@ -59,23 +59,33 @@ class BedrockClaudeClient:
             "toolSpec": {
                 "name": "publish_code_review_findings",
                 "description": (
-                    "Publish findings from a thorough code review. Review ALL file types in the diff: "
-                    "source code, Dockerfiles, docker-compose files, CI/CD YAML, shell scripts, nginx configs, and documentation. "
-                    "For infrastructure files (Dockerfile, docker-compose, .yml pipelines, nginx.conf, Makefile, .sh), "
-                    "carefully check every instruction for truncated paths, misspelled commands, invalid port numbers, "
-                    "wrong image tags, or missing config keys — these are MEDIUM or HIGH severity, NOT INFO, because they break builds or deployments. "
-                    "For documentation files (README, LICENSE, .md), report typos and formatting errors as INFO. "
-                    "Never skip findings in infrastructure/config files by labelling them cosmetic.\n\n"
+                    "Perform a strict, senior-engineer-level security and quality review of this diff. "
+                    "Your job is to find REAL bugs, security issues, and infrastructure errors — NOT to "
+                    "summarize what the code does.\n\n"
+                    "SEVERITY RULES (strictly enforced):\n"
+                    "- CRITICAL: Exploitable vulnerability (hardcoded secret, SQLi, RCE, auth bypass). RARE.\n"
+                    "- HIGH: Security weakness or infra failure that blocks deployment or causes data loss.\n"
+                    "- MEDIUM: Functional error in executable/infra files — broken paths, wrong ports, "
+                    "invalid commands, missing required config. If it breaks the build or runtime, it is MEDIUM.\n"
+                    "- LOW: Code quality issue with no runtime impact.\n"
+                    "- INFO: ONLY for typos in README/.md documentation files. "
+                    "NEVER use INFO for errors in Go/Python/JS/TS source code, Dockerfiles, YAML, shell scripts, "
+                    "or any file that gets executed or interpreted. If you find a real bug in source code, "
+                    "it must be LOW, MEDIUM, HIGH, or CRITICAL — never INFO.\n\n"
+                    "WHAT TO LOOK FOR (examples):\n"
+                    "- Hardcoded secrets, tokens, passwords → CRITICAL\n"
+                    "- Missing input validation, SQL injection vectors → HIGH\n"
+                    "- Race conditions, nil pointer dereferences, unchecked errors → MEDIUM/HIGH\n"
+                    "- Incorrect error handling patterns, ignored return values → MEDIUM\n"
+                    "- Performance issues (N+1 queries, unbounded loops) → MEDIUM/LOW\n"
+                    "- Insecure defaults (no timeouts, overly broad CORS) → MEDIUM\n"
+                    "- Dead code, unnecessary complexity → LOW\n\n"
                     "ANTI-HALLUCINATION RULES (MANDATORY):\n"
-                    "1. NEVER suggest a fix where the suggested code is identical to the original code. "
-                    "If the '-' line and '+' line would be the same text, do NOT emit that finding.\n"
-                    "2. Do NOT hallucinate stylistic changes for standard database naming conventions. "
-                    "Columns like user_id, created_at, updated_at are correct snake_case SQL style — "
-                    "do NOT suggest changing them to userid, createdat, etc.\n"
-                    "3. If you cannot confidently provide a syntactically correct and MEANINGFUL fix "
-                    "that actually changes the code, leave suggested_fix as an empty string.\n"
-                    "4. Before emitting any finding, verify that the original line you reference actually "
-                    "appears in the diff exactly as you quote it. Do NOT fabricate line content."
+                    "1. Never emit a finding that just describes what the code does — only report actual problems.\n"
+                    "2. Never suggest a fix where the suggested code is identical to the original.\n"
+                    "3. Never suggest renaming standard SQL columns (user_id, created_at, etc.).\n"
+                    "4. Only reference lines that actually appear in the diff as '+' (added) lines.\n"
+                    "5. If you cannot provide a meaningfully different fix, leave suggested_fix as empty string."
                 ),
                 "inputSchema": {
                     "json": {
@@ -183,8 +193,8 @@ class BedrockClaudeClient:
                 }
             },
             "inferenceConfig": {
-                "maxTokens": 4096,
-                "temperature": 0.1 # Low temperature for analytical deterministic review
+                "maxTokens": 8192,
+                "temperature": 0.1,  # Low temperature for analytical deterministic review
             }
         }
 
