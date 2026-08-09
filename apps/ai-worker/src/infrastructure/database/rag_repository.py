@@ -142,7 +142,7 @@ class RAGRepository:
             return {"login": developer_login, "historical_weaknesses": [], "total_prs_analyzed": 0}
 
         try:
-            from src.infrastructure.database.models import Developer, DeveloperRepositoryStat
+            from src.infrastructure.database.models import Developer
             result = await self.session.execute(
                 select(Developer).where(Developer.login == developer_login).limit(1)
             )
@@ -150,16 +150,8 @@ class RAGRepository:
             if not dev:
                 return {"login": developer_login, "historical_weaknesses": [], "total_prs_analyzed": 0}
 
-            # Fetch recurring weakness categories across all repos
-            stats_result = await self.session.execute(
-                select(DeveloperRepositoryStat).where(
-                    DeveloperRepositoryStat.developer_id == dev.id
-                )
-            )
-            stats = stats_result.scalars().all()
+            # Return empty weaknesses for now since DeveloperRepositoryStat doesn't exist
             all_categories = []
-            for s in stats:
-                all_categories.extend(s.recurring_categories or [])
 
             # De-dup preserving order
             seen = set()

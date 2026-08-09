@@ -45,11 +45,31 @@ class BedrockClaudeClient:
             client_kwargs["aws_secret_access_key"] = aws_secret_access_key
             
         self.client = boto3.client("bedrock-runtime", **client_kwargs)
-        # Claude 3.5 Haiku: confirmed-valid mid-tier model (2025).
-        # Faster and cheaper than Claude 3.5 Sonnet, more capable than Claude 3 Haiku.
-        # The "us." prefix enables cross-region inference routing for higher availability.
-        self.model_id = "us.anthropic.claude-3-5-haiku-20241022-v1:0"
         
+        # Dynamically resolve an active Claude model to avoid End-of-Life (EOL) crashes.
+        # We query the Bedrock control plane for active Anthropic models.
+        try:
+            control_plane = boto3.client("bedrock", **client_kwargs)
+            models = control_plane.list_foundation_models(byProvider="Anthropic")["modelSummaries"]
+            
+            # Filter for ACTIVE models only
+            active_models = [m["modelId"] for m in models if m.get("modelLifecycle", {}).get("status") == "ACTIVE"]
+            
+            # Prefer Claude 3.5 Sonnet v2, then Haiku 4.5, then fallback to any active model
+            if "anthropic.claude-3-5-sonnet-20241022-v2:0" in active_models:
+                self.model_id = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+            elif "anthropic.claude-haiku-4-5-20251001-v1:0" in active_models:
+                self.model_id = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+            else:
+                # Grab the most capable looking one as a fallback
+                sonnets = [m for m in active_models if "sonnet" in m.lower()]
+                self.model_id = sonnets[-1] if sonnets else active_models[-1]
+                
+            print(f"[Bedrock] Dynamically selected active model: {self.model_id}")
+        except Exception as e:
+            print(f"[Bedrock] Warning: Failed to query active models: {e}. Falling back to default.")
+            self.model_id = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+
         # ThreadPool for isolating blocking boto3 calls from the asyncio loop
         self._executor = ThreadPoolExecutor(max_workers=5)
 
