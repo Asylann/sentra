@@ -45,7 +45,10 @@ class BedrockClaudeClient:
             client_kwargs["aws_secret_access_key"] = aws_secret_access_key
             
         self.client = boto3.client("bedrock-runtime", **client_kwargs)
-        self.model_id = "us.anthropic.claude-sonnet-4-5"
+        # Claude 3.5 Haiku: confirmed-valid mid-tier model (2025).
+        # Faster and cheaper than Claude 3.5 Sonnet, more capable than Claude 3 Haiku.
+        # The "us." prefix enables cross-region inference routing for higher availability.
+        self.model_id = "us.anthropic.claude-3-5-haiku-20241022-v1:0"
         
         # ThreadPool for isolating blocking boto3 calls from the asyncio loop
         self._executor = ThreadPoolExecutor(max_workers=5)
