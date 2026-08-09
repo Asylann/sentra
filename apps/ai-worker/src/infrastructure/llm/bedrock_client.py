@@ -45,11 +45,10 @@ class BedrockClaudeClient:
             client_kwargs["aws_secret_access_key"] = aws_secret_access_key
             
         self.client = boto3.client("bedrock-runtime", **client_kwargs)
-        # Claude 3 Sonnet: mid-tier model (between Haiku/cheapest and Opus/most expensive)
-        # Valid as of 2025. Cross-region inference profile prefix "us." is required in most accounts.
-        # If you get a ValidationException, try without the "us." prefix:
-        #   anthropic.claude-3-sonnet-20240229-v1:0
-        self.model_id = "us.anthropic.claude-3-sonnet-20240229-v1:0"
+        # Claude 3.5 Haiku: confirmed-valid mid-tier model (2025).
+        # Faster and cheaper than Claude 3.5 Sonnet, more capable than Claude 3 Haiku.
+        # The "us." prefix enables cross-region inference routing for higher availability.
+        self.model_id = "us.anthropic.claude-3-5-haiku-20241022-v1:0"
         
         # ThreadPool for isolating blocking boto3 calls from the asyncio loop
         self._executor = ThreadPoolExecutor(max_workers=5)
