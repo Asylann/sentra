@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any
 
 from src.domain.entities.review_finding import ReviewFinding
 from src.infrastructure.github.auth import GitHubAppAuth
@@ -10,15 +10,35 @@ from src.infrastructure.github.pull_request_review import (
 
 logger = logging.getLogger(__name__)
 
+# Severity → emoji for rich markdown badges in PR Review comments
+_SEVERITY_EMOJI = {
+    "CRITICAL": "🔴",
+    "HIGH": "🟠",
+    "MEDIUM": "🟡",
+    "LOW": "🔵",
+    "INFO": "⚪",
+}
+
+_SEVERITY_LABEL = {
+    "CRITICAL": "Critical",
+    "HIGH": "High",
+    "MEDIUM": "Medium",
+    "LOW": "Low",
+    "INFO": "Info",
+}
+
 
 class PRReviewAdapter:
     """
-    Adapts findings into GitHub PR Review API calls with native ```suggestion
-    fences for interactive "Apply suggestion" UX.
+    Posts all findings as GitHub PR Review inline comments with rich Markdown.
 
-    Accepts both ReviewFinding domain entities and raw dict findings from the
-    LLM pipeline. All findings with non-empty suggestion_code are posted as
-    PR Review comments with full Markdown rendering.
+    - Findings WITH suggestion_code → comment body ends with a ```suggestion fence
+      so GitHub renders an interactive "Apply suggestion" button.
+    - Findings WITHOUT suggestion_code → comment body ends with a plain diff/code
+      block showing the recommended fix, still fully Markdown-rendered.
+
+    Both paths use the PR Review API (not Check Run annotations), which is the
+    only GitHub surface that renders Markdown inside comment bodies.
     """
 
     def __init__(self, auth: GitHubAppAuth):
@@ -32,14 +52,13 @@ class PRReviewAdapter:
         installation_id: int,
         findings: list[ReviewFinding],
     ) -> None:
-        """Submit ReviewFinding domain entities as PR Review suggestions."""
-        suggestable = [f for f in findings if f.has_suggestion]
-        if not suggestable:
+        """Submit ReviewFinding domain entities as PR Review inline comments."""
+        if not findings:
             return
 
         comments: List[ReviewComment] = []
-        for finding in suggestable:
-            body = self._format_suggestion_body_entity(finding)
+        for finding in findings:
+            body = self._format_finding_entity(finding)
             line_end = finding.line_end if finding.line_end else finding.line_start
             comment = ReviewComment(
                 path=finding.file_path,
@@ -61,18 +80,17 @@ class PRReviewAdapter:
         installation_id: int,
         findings: List[Dict[str, Any]],
     ) -> None:
-        """Submit raw dict findings (from LLM pipeline) as PR Review suggestions."""
+        """Submit raw dict findings (from LLM pipeline) as PR Review inline comments."""
         if not findings:
             return
 
         comments: List[ReviewComment] = []
         for finding in findings:
-            suggestion_code = finding.get('suggestion_code', '').strip()
-            if not suggestion_code:
-                continue
-            body = self._format_suggestion_body_dict(finding)
+            body = self._format_finding_dict(finding)
             line_start = finding.get('line_start', 1)
             line_end = finding.get('line_end', line_start)
+            if not line_end or line_end < line_start:
+                line_end = line_start
             comment = ReviewComment(
                 path=finding.get('file_path', 'unknown'),
                 line=line_end,
@@ -96,49 +114,77 @@ class PRReviewAdapter:
         if not comments:
             return
 
-        summary = (
-            f"**Sentra AI** found {len(comments)} auto-fixable issue(s). "
-            "Click **Apply suggestion** to accept each fix directly from this review."
-        )
+        suggestable = sum(1 for c in comments if "```suggestion" in c.body)
+        summary_parts = [
+            "## Sentra AI Code Review",
+            "",
+            f"Found **{len(comments)}** issue(s) across this pull request.",
+        ]
+        if suggestable:
+            summary_parts.append(
+                f"**{suggestable}** have one-click fixes — click **Apply suggestion** to accept."
+            )
+        summary_parts += [
+            "",
+            "> *Powered by Sentra AI — automated security and quality analysis.*",
+        ]
 
         await self._api.create_review_with_suggestions(
             repo_full_name=repo,
             pull_number=pull_number,
             commit_id=head_sha,
             comments=comments,
-            body=summary,
+            body="\n".join(summary_parts),
             installation_id=installation_id,
             event="COMMENT",
         )
 
     @staticmethod
-    def _format_suggestion_body_entity(finding: ReviewFinding) -> str:
-        severity_badge = f"**[{finding.severity.value}]**"
+    def _format_finding_entity(finding: ReviewFinding) -> str:
+        severity = finding.severity.value.upper()
+        emoji = _SEVERITY_EMOJI.get(severity, "⚪")
+        label = _SEVERITY_LABEL.get(severity, severity)
         category = finding.category.value if finding.category else ""
-        category_tag = f" `{category}`" if category else ""
-        return (
-            f"{severity_badge}{category_tag} **{finding.title}**\n\n"
-            f"{finding.description}\n\n"
-            f"```suggestion\n"
-            f"{finding.suggestion_code}\n"
-            f"```"
-        )
+        category_tag = f"`{category}`" if category else ""
+
+        header = f"{emoji} **{label}** {category_tag} — **{finding.title}**"
+        body = f"{header}\n\n{finding.description}"
+
+        if finding.suggestion_code.strip():
+            body += f"\n\n```suggestion\n{finding.suggestion_code}\n```"
+        elif finding.suggested_fix.strip():
+            body += f"\n\n**Suggested fix:**\n```diff\n{finding.suggested_fix}\n```"
+
+        return body
 
     @staticmethod
-    def _format_suggestion_body_dict(finding: Dict[str, Any]) -> str:
+    def _format_finding_dict(finding: Dict[str, Any]) -> str:
         severity = finding.get('severity', 'INFO').upper()
+        emoji = _SEVERITY_EMOJI.get(severity, "⚪")
+        label = _SEVERITY_LABEL.get(severity, severity)
         category = finding.get('category', '')
+        category_tag = f"`{category}`" if category else ""
         title = finding.get('title', 'Analysis Finding')
         description = finding.get('description', '')
-        suggestion_code = finding.get('suggestion_code', '')
+        suggestion_code = finding.get('suggestion_code', '').strip()
+        suggested_fix = finding.get('suggested_fix', '').strip()
 
-        severity_badge = f"**[{severity}]**"
-        category_tag = f" `{category}`" if category else ""
+        header = f"{emoji} **{label}** {category_tag} — **{title}**"
+        body = f"{header}\n\n{description}"
 
-        return (
-            f"{severity_badge}{category_tag} **{title}**\n\n"
-            f"{description}\n\n"
-            f"```suggestion\n"
-            f"{suggestion_code}\n"
-            f"```"
-        )
+        if suggestion_code:
+            body += f"\n\n```suggestion\n{suggestion_code}\n```"
+        elif suggested_fix:
+            # Strip any outer fences the LLM may have added
+            inner = suggested_fix
+            if inner.startswith("```"):
+                lines = inner.splitlines()
+                closing = next(
+                    (i for i in range(len(lines) - 1, 0, -1) if lines[i].strip() == "```"),
+                    None,
+                )
+                if closing:
+                    inner = "\n".join(lines[1:closing])
+            body += f"\n\n**Suggested fix:**\n```diff\n{inner}\n```"
+
+        return body
