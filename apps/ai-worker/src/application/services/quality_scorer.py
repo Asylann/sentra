@@ -9,13 +9,12 @@ class QualityScorer:
     Controls the final GitHub Check Run conclusion.
     """
 
-    # Defined strictly in AGENTS.md requirements
     SEVERITY_WEIGHTS = {
         "CRITICAL": 25,
         "HIGH": 15,
         "MEDIUM": 5,
-        "LOW": 1,
-        "INFO": 0
+        "LOW": 2,
+        "INFO": 1,  # must be non-zero — 3 INFOs should NOT yield 100/100
     }
 
     @classmethod
@@ -38,16 +37,17 @@ class QualityScorer:
             if severity == "CRITICAL":
                 has_critical = True
 
-        # Volume penalty: every finding beyond the first 3 deducts 1 extra point,
-        # capped at 15, to prevent a flood of INFO/LOW from scoring 100.
+        # Volume penalty: every finding beyond the first 1 deducts 1 extra point,
+        # capped at 20, so any non-trivial PR with several findings is penalized.
         total_findings = sum(counts.values())
-        volume_penalty = min(15, max(0, total_findings - 3))
+        volume_penalty = min(20, max(0, total_findings - 1))
         total_deduction += volume_penalty
 
         quality_score = max(0, 100 - total_deduction)
 
-        # Merge gate logic
-        if quality_score < 80 or has_critical:
+        # Merge gate logic: fail if score < 80, or any CRITICAL/HIGH present
+        has_high_or_critical = has_critical or counts.get("HIGH", 0) > 0
+        if quality_score < 80 or has_high_or_critical:
             conclusion = "failure"
         else:
             conclusion = "success"

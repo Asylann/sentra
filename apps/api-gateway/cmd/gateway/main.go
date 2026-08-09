@@ -142,6 +142,106 @@ func main() {
 		log.Printf("HTTP request, status: %d, method: %s, path: %s, latency: %v", c.Writer.Status(), c.Request.Method, c.Request.URL.Path, time.Since(start))
 	})
 
+	router.NoRoute(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "API route not found"})
+			return
+		}
+		
+		html := `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Lost in the Void</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #0B0F19;
+            color: #F8FAFC;
+            font-family: system-ui, -apple-system, sans-serif;
+            background-image: radial-gradient(circle at 50% 30%, #1a1a2e 0%, transparent 70%);
+            overflow: hidden;
+            position: relative;
+        }
+        .container {
+            text-align: center;
+            position: relative;
+            z-index: 10;
+        }
+        h1 {
+            font-size: 150px;
+            font-weight: 900;
+            margin: 0;
+            line-height: 1;
+            background: linear-gradient(135deg, #6366F1, #A855F7, #EC4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .7; }
+        }
+        h2 {
+            font-size: 2.5rem;
+            margin: 20px 0;
+        }
+        p {
+            color: #94A3B8;
+            font-size: 1.25rem;
+            max-width: 500px;
+            margin: 0 auto 40px auto;
+        }
+        a {
+            display: inline-flex;
+            align-items: center;
+            padding: 15px 30px;
+            background: #1F2937;
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        a:hover {
+            transform: scale(1.05);
+            background: #374151;
+            box-shadow: 0 0 40px -10px rgba(99,102,241,0.5);
+        }
+        .glow {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: rgba(99,102,241,0.2);
+            border-radius: 50%;
+            filter: blur(100px);
+            z-index: 1;
+        }
+        .glow-1 { top: 20%; left: 20%; }
+        .glow-2 { bottom: 20%; right: 20%; background: rgba(236,72,153,0.2); }
+    </style>
+</head>
+<body>
+    <div class="glow glow-1"></div>
+    <div class="glow glow-2"></div>
+    <div class="container">
+        <h1>404</h1>
+        <h2>Lost in the Void</h2>
+        <p>The endpoint or page you're looking for doesn't exist.</p>
+        <a href="` + frontendURL + `">Return to Dashboard</a>
+    </div>
+</body>
+</html>`
+		c.Data(http.StatusNotFound, "text/html; charset=utf-8", []byte(html))
+	})
+
 	// ---------------------------------------------------------------------------
 	// Routes
 	// ---------------------------------------------------------------------------

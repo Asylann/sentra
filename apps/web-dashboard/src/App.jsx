@@ -7,6 +7,7 @@ import { WorkspaceProvider } from './context/WorkspaceContext';
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
 import Onboarding from './pages/Onboarding';
+import NotFoundPage from './pages/NotFoundPage';
 
 // Dashboard components
 import DashboardView from './components/dashboard/DashboardView';
@@ -134,7 +135,7 @@ export default function App() {
           <Route path="/coming-soon" element={<ComingSoonPage />} />
 
           {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

@@ -228,32 +228,42 @@ class AnalyzePRUseCase:
                     f"with auto-fix support. Look for the **Apply suggestion** button on each comment.\n"
                 )
 
-            # Step 9: Route findings to appropriate GitHub surfaces
-            # Findings WITH suggestion_code -> PR Review (rich Markdown + "Apply suggestion")
-            # Findings WITHOUT suggestion_code -> Check Run annotations (plain text)
-            suggestable_findings = [
-                f for f in all_findings if f.get('suggestion_code', '').strip()
+            # Step 9: Route findings to GitHub surfaces.
+            #
+            # Strategy:
+            #   - ALL findings with a valid line number → PR Review inline comments.
+            #     PR Review comments render full Markdown (emojis, bold, code fences,
+            #     ```suggestion blocks). This is the rich, readable surface.
+            #   - Findings without a usable line (line_start < 1) → Check Run
+            #     annotations only, as plain text fallback.
+            #   - The Check Run summary always renders Markdown (it's the check detail page).
+            #
+            inline_findings = [
+                f for f in all_findings if f.get('line_start', 0) >= 1
             ]
             annotation_only_findings = [
-                f for f in all_findings if not f.get('suggestion_code', '').strip()
+                f for f in all_findings if f.get('line_start', 0) < 1
             ]
 
-            # 9a: Post suggestable findings as PR Review comments
-            if suggestable_findings:
+            # 9a: Post all line-anchored findings as rich PR Review inline comments
+            if inline_findings:
                 logger.info(
-                    "Step 9a: Posting %d finding(s) as PR Review suggestions",
-                    len(suggestable_findings),
+                    "Step 9a: Posting %d finding(s) as PR Review inline comments",
+                    len(inline_findings),
                 )
                 await self.pr_review_adapter.submit_review_comments(
                     repo_full_name=repo_full_name,
                     pull_number=pr_number,
                     head_sha=head_sha,
                     installation_id=installation_id,
-                    findings=suggestable_findings,
+                    findings=inline_findings,
                 )
 
-            # 9b: Complete Check Run with summary + annotation-only findings
-            logger.info("Step 9b: Completing Check Run (summary + %d annotation-only findings)", len(annotation_only_findings))
+            # 9b: Complete Check Run with markdown summary + plain-text fallback annotations
+            logger.info(
+                "Step 9b: Completing Check Run (summary + %d fallback annotations)",
+                len(annotation_only_findings),
+            )
             await self.check_runs_api.complete_check_run(
                 repo_full_name, check_run_id, conclusion, summary, annotation_only_findings, installation_id
             )
