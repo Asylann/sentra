@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { motion, useScroll, useTransform, useSpring, useInView, useMotionValueEvent } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { FileCode, ShieldAlert, Code2, ArrowRight, GitPullRequest, ShieldCheck, Terminal, Zap, Eye, Lock, Cpu, BarChart3, GitMerge, Building2, Users, CheckCircle2 } from 'lucide-react';
+import { FileCode, ShieldAlert, Code2, ArrowRight, GitPullRequest, ShieldCheck, Terminal, Zap, Eye, Lock, Cpu, BarChart3, GitMerge, Building2, Users, CheckCircle2, Globe } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage, LanguageProvider } from '../../context/LanguageContext';
 
 function ParallaxLayer({ children, speed = 0.5, className = '' }) {
   const ref = useRef(null);
@@ -96,444 +97,364 @@ function AnimatedCounter({ target, suffix = '' }) {
   return <span ref={ref}>{count.toLocaleString()}{suffix}</span>;
 }
 
-function B2BTeamSection() {
-  const developers = [
-    { name: 'Alex', initials: 'AK', gradient: 'from-violet-500 to-indigo-600', branch: 'feat/auth-flow', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face' },
-    { name: 'Sara', initials: 'SM', gradient: 'from-emerald-500 to-teal-600', branch: 'fix/api-timeout', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=face' },
-    { name: 'Kai', initials: 'KR', gradient: 'from-amber-500 to-orange-600', branch: 'refactor/db-layer', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=80&h=80&fit=crop&crop=face' },
+function B2BTeamSection({ t }) {
+  const team = [
+    { name: 'Alex', role: 'Backend', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face', score: 94, branch: 'feat/auth-flow', status: 'merged' },
+    { name: 'Sara', role: 'Full-stack', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=face', score: 87, branch: 'fix/api-timeout', status: 'reviewing' },
+    { name: 'Kai', role: 'Infra', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=80&h=80&fit=crop&crop=face', score: 72, branch: 'refactor/db-pool', status: 'changes' },
   ];
 
   return (
-    <section className="py-32 px-4 relative overflow-hidden border-t border-white/[0.04]">
-      <div className="absolute inset-0 bg-[#010101]" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-indigo-600/[0.04] blur-[150px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[600px] h-[400px] bg-purple-600/[0.03] blur-[120px] rounded-full pointer-events-none" />
+    <section className="py-40 px-4 relative overflow-hidden">
+      <div className="absolute inset-0 bg-[#000]" />
 
       <div className="max-w-7xl mx-auto relative z-10">
+        <div className="grid lg:grid-cols-2 gap-20 items-center">
 
-        {/* Header */}
-        <div className="text-center mb-20">
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="text-sm font-medium text-indigo-400 uppercase tracking-[0.2em] mb-4"
-          >
-            For Engineering Teams
-          </motion.p>
-          <motion.h2
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-[-0.03em] text-white mb-6"
-          >
-            Build great software{' '}
-            <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">together.</span>
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed"
-          >
-            Every pull request flows through Sentra. Your team gets instant feedback, quality scores, and one-click fixes — before a single line reaches main.
-          </motion.p>
-        </div>
+          {/* Left: Editorial copy */}
+          <div>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.7 }}
+            >
+              <p className="text-indigo-400 text-sm font-medium tracking-[0.15em] uppercase mb-6">{t('team.badge')}</p>
+              <h2 className="text-4xl md:text-5xl lg:text-[3.5rem] font-bold tracking-[-0.03em] text-white leading-[1.1] mb-8">
+                {t('team.title')}{' '}
+                <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">{t('team.title.highlight')}</span>
+              </h2>
+              <p className="text-gray-400 text-lg leading-relaxed mb-10 max-w-lg">
+                {t('team.subtitle')}
+              </p>
 
-        {/* Animated Pipeline Visualization */}
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.8, delay: 0.3 }}
-          className="relative max-w-5xl mx-auto"
-        >
-          {/* The "screen" container */}
-          <div className="relative bg-[#0A0A0F] border border-white/[0.08] rounded-2xl overflow-hidden shadow-2xl shadow-black/50">
-
-            {/* Window chrome */}
-            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-white/[0.06] bg-white/[0.02]">
-              <div className="flex gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
-                <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
-                <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
-              </div>
-              <div className="flex-1 flex justify-center">
-                <div className="px-4 py-1 rounded-md bg-white/[0.04] border border-white/[0.06] text-[11px] text-gray-500 font-mono">
-                  sentra.ai/dashboard/team
-                </div>
-              </div>
-            </div>
-
-            {/* Content area */}
-            <div className="p-8 md:p-12 min-h-[400px] flex flex-col justify-center">
-
-              {/* Pipeline rows */}
-              <div className="space-y-4">
-                {developers.map((dev, i) => (
+              {/* Live stats */}
+              <div className="flex gap-10">
+                {[
+                  { value: '1,247', label: 'PRs reviewed' },
+                  { value: '86', label: 'Avg score' },
+                  { value: '342', label: 'Bugs caught' },
+                ].map((s, i) => (
                   <motion.div
-                    key={dev.name}
-                    initial={{ opacity: 0, x: -40 }}
-                    whileInView={{ opacity: 1, x: 0 }}
+                    key={s.label}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    transition={{ delay: 0.5 + i * 0.15, duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
-                    className="group relative"
+                    transition={{ delay: 0.3 + i * 0.1, duration: 0.5 }}
                   >
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-white/[0.1] transition-all duration-300">
-
-                      {/* Avatar */}
-                      <img
-                        src={dev.avatar}
-                        alt={dev.name}
-                        className="w-9 h-9 rounded-full object-cover shrink-0 shadow-lg ring-2 ring-white/10"
-                      />
-
-                      {/* Branch info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-sm font-medium text-gray-200">{dev.name}</span>
-                          <span className="text-gray-600 text-xs">opened a PR</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <GitMerge className="w-3 h-3 text-gray-600 shrink-0" />
-                          <span className="text-xs font-mono text-gray-500 truncate">{dev.branch}</span>
-                        </div>
-                      </div>
-
-                      {/* Analysis pipeline animation */}
-                      <div className="hidden sm:flex items-center gap-2">
-                        {/* Step indicators */}
-                        {['Scan', 'AI Review', 'Score'].map((step, j) => (
-                          <motion.div
-                            key={step}
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            whileInView={{ opacity: 1, scale: 1 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: 0.8 + i * 0.15 + j * 0.2 }}
-                            className="flex items-center gap-1"
-                          >
-                            <motion.div
-                              animate={{ opacity: [0.5, 1, 0.5] }}
-                              transition={{ duration: 2, repeat: Infinity, delay: j * 0.3 + i * 0.5 }}
-                              className={`w-1.5 h-1.5 rounded-full ${j < 2 ? 'bg-emerald-400' : 'bg-indigo-400'}`}
-                            />
-                            <span className="text-[10px] text-gray-600 font-medium">{step}</span>
-                            {j < 2 && <div className="w-3 h-px bg-white/[0.08] mx-0.5" />}
-                          </motion.div>
-                        ))}
-                      </div>
-
-                      {/* Quality score */}
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0 }}
-                        whileInView={{ opacity: 1, scale: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: 1.4 + i * 0.2, type: "spring", bounce: 0.4 }}
-                        className={`shrink-0 px-3 py-1.5 rounded-lg border text-xs font-bold font-mono ${
-                          i === 0 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                          i === 1 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                          'bg-amber-500/10 border-amber-500/20 text-amber-400'
-                        }`}
-                      >
-                        {i === 0 ? '94' : i === 1 ? '87' : '72'}
-                      </motion.div>
-
-                      {/* Status */}
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        whileInView={{ opacity: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: 1.6 + i * 0.2 }}
-                        className="shrink-0"
-                      >
-                        {i < 2 ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                        ) : (
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                            className="w-5 h-5 rounded-full border-2 border-indigo-400/30 border-t-indigo-400"
-                          />
-                        )}
-                      </motion.div>
-                    </div>
-
-                    {/* Animated suggestion preview (appears for middle row) */}
-                    {i === 1 && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        whileInView={{ opacity: 1, height: 'auto' }}
-                        viewport={{ once: true }}
-                        transition={{ delay: 1.8, duration: 0.5 }}
-                        className="mt-2 ml-14 mr-4"
-                      >
-                        <div className="p-3 rounded-lg bg-indigo-500/[0.04] border border-indigo-500/10 font-mono text-[11px] leading-relaxed">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[9px] font-bold">SUGGESTION</div>
-                            <span className="text-gray-500">src/api/handler.go:42</span>
-                          </div>
-                          <div className="text-red-400/80 line-through decoration-red-400/30">{'  timeout: 30 * time.Second,'}</div>
-                          <div className="text-emerald-400/90">{'+  timeout: 5 * time.Second, // prevent cascading failures'}</div>
-                        </div>
-                      </motion.div>
-                    )}
+                    <div className="text-2xl font-bold text-white font-mono">{s.value}</div>
+                    <div className="text-xs text-gray-600 mt-1 uppercase tracking-wider">{s.label}</div>
                   </motion.div>
                 ))}
               </div>
-
-              {/* Bottom stats bar */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: 2.0, duration: 0.5 }}
-                className="mt-8 pt-6 border-t border-white/[0.04] flex flex-wrap items-center justify-between gap-4"
-              >
-                <div className="flex items-center gap-6">
-                  {[
-                    { label: 'PRs reviewed', value: '1,247' },
-                    { label: 'Avg score', value: '86' },
-                    { label: 'Bugs caught', value: '342' },
-                  ].map((stat) => (
-                    <div key={stat.label} className="text-center">
-                      <div className="text-lg font-bold text-white font-mono">{stat.value}</div>
-                      <div className="text-[10px] text-gray-600 uppercase tracking-wider">{stat.label}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex -space-x-2">
-                    {developers.map((d) => (
-                      <img key={d.name} src={d.avatar} alt={d.name} className="w-6 h-6 rounded-full object-cover border-2 border-[#0A0A0F]" />
-                    ))}
-                    <div className="w-6 h-6 rounded-full bg-white/10 border-2 border-[#0A0A0F] text-[8px] font-medium text-gray-400 flex items-center justify-center">
-                      +5
-                    </div>
-                  </div>
-                  <span className="text-[11px] text-gray-500">8 engineers active</span>
-                </div>
-              </motion.div>
-
-            </div>
+            </motion.div>
           </div>
 
-          {/* Glow effect behind the card */}
-          <div className="absolute -inset-4 -z-10 bg-gradient-to-b from-indigo-500/[0.05] via-transparent to-purple-500/[0.03] rounded-3xl blur-2xl" />
-        </motion.div>
+          {/* Right: Floating team cards */}
+          <div className="relative h-[480px]">
+            {/* Connection lines (subtle) */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-30" viewBox="0 0 400 480">
+              <motion.path
+                d="M 200 80 Q 140 180 120 240 Q 100 300 200 400"
+                stroke="url(#line-grad)" strokeWidth="1" fill="none" strokeDasharray="4 4"
+                initial={{ pathLength: 0 }} whileInView={{ pathLength: 1 }}
+                viewport={{ once: true }} transition={{ duration: 2, delay: 0.5 }}
+              />
+              <motion.path
+                d="M 200 80 Q 260 180 280 240 Q 300 300 200 400"
+                stroke="url(#line-grad)" strokeWidth="1" fill="none" strokeDasharray="4 4"
+                initial={{ pathLength: 0 }} whileInView={{ pathLength: 1 }}
+                viewport={{ once: true }} transition={{ duration: 2, delay: 0.7 }}
+              />
+              <defs>
+                <linearGradient id="line-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#818cf8" stopOpacity="0.6" />
+                  <stop offset="100%" stopColor="#818cf8" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+            </svg>
 
-        {/* Bottom tagline */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ delay: 2.2, duration: 0.6 }}
-          className="text-center text-sm text-gray-600 mt-10"
-        >
-          Trusted by teams at startups and enterprises shipping 50+ PRs per week.
-        </motion.p>
+            {/* Sentra hub (center) */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2, type: "spring", bounce: 0.3 }}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+            >
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/10 border border-indigo-500/30 flex items-center justify-center backdrop-blur-sm shadow-2xl shadow-indigo-500/10">
+                <img src="/logo_with_name.png" alt="Sentra" className="h-6 opacity-80" />
+              </div>
+              <motion.div
+                className="absolute -inset-3 rounded-2xl border border-indigo-400/20"
+                animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
+                transition={{ duration: 3, repeat: Infinity }}
+              />
+            </motion.div>
+
+            {/* Developer cards - positioned around the hub */}
+            {team.map((dev, i) => {
+              const positions = [
+                { top: '4%', left: '25%', rotate: -2 },
+                { top: '30%', right: '2%', rotate: 1 },
+                { bottom: '8%', left: '15%', rotate: -1 },
+              ];
+              const pos = positions[i];
+              const statusColors = {
+                merged: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
+                reviewing: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/25',
+                changes: 'bg-amber-500/15 text-amber-400 border-amber-500/25',
+              };
+              const statusLabels = { merged: 'Merged', reviewing: 'In Review', changes: 'Changes' };
+
+              return (
+                <motion.div
+                  key={dev.name}
+                  initial={{ opacity: 0, y: 30, rotate: 0 }}
+                  whileInView={{ opacity: 1, y: 0, rotate: pos.rotate }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.4 + i * 0.2, duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
+                  className="absolute w-[240px]"
+                  style={pos}
+                >
+                  <div className="bg-[#0A0A0F]/95 backdrop-blur-xl border border-white/[0.08] rounded-xl p-4 shadow-2xl hover:border-white/[0.15] transition-all duration-500 hover:shadow-indigo-500/5">
+                    <div className="flex items-center gap-3 mb-3">
+                      <img src={dev.avatar} alt={dev.name} className="w-9 h-9 rounded-full object-cover ring-2 ring-white/10" />
+                      <div>
+                        <div className="text-sm font-medium text-white">{dev.name}</div>
+                        <div className="text-[11px] text-gray-500">{dev.role}</div>
+                      </div>
+                      <div className="ml-auto text-lg font-bold font-mono text-white/90">{dev.score}</div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <GitMerge className="w-3 h-3 text-gray-600" />
+                        <span className="text-[10px] font-mono text-gray-500">{dev.branch}</span>
+                      </div>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusColors[dev.status]}`}>
+                        {statusLabels[dev.status]}
+                      </span>
+                    </div>
+                    {/* Score bar */}
+                    <div className="mt-3 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        whileInView={{ width: `${dev.score}%` }}
+                        viewport={{ once: true }}
+                        transition={{ delay: 0.8 + i * 0.2, duration: 1, ease: "easeOut" }}
+                        className={`h-full rounded-full ${dev.score >= 85 ? 'bg-emerald-500' : dev.score >= 75 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </section>
   );
 }
 
-function LeaderboardShowcase() {
-  const leaderboardData = [
-    { rank: 1, name: 'Alex K.', login: 'alexk', prs: 47, avgScore: 92, index: 4.18, avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face' },
-    { rank: 2, name: 'Sara M.', login: 'saram', prs: 38, avgScore: 89, index: 3.85, avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=face' },
-    { rank: 3, name: 'Kai R.', login: 'kair', prs: 52, avgScore: 78, index: 3.52, avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=80&h=80&fit=crop&crop=face' },
-    { rank: 4, name: 'Jordan L.', login: 'jordanl', prs: 29, avgScore: 95, index: 3.41, avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face' },
-    { rank: 5, name: 'Dev P.', login: 'devp', prs: 33, avgScore: 81, index: 2.97, avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face' },
+function LeaderboardShowcase({ t }) {
+  const devs = [
+    { name: 'Alex K.', role: 'Backend Lead', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face', score: 92, prs: 47, trend: '+4' },
+    { name: 'Sara M.', role: 'Full-stack', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=face', score: 89, prs: 38, trend: '+7' },
+    { name: 'Kai R.', role: 'Infra', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=80&h=80&fit=crop&crop=face', score: 78, prs: 52, trend: '-2' },
+    { name: 'Jordan L.', role: 'Security', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face', score: 95, prs: 29, trend: '+1' },
+    { name: 'Dev P.', role: 'Frontend', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face', score: 81, prs: 33, trend: '+3' },
   ];
 
+  const weeklyData = [62, 71, 68, 79, 84, 88, 92];
+
   return (
-    <section className="py-32 px-4 relative overflow-hidden border-t border-white/[0.04]">
-      <div className="absolute inset-0 bg-[#010101]" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] bg-purple-600/[0.04] blur-[150px] rounded-full pointer-events-none" />
+    <section className="py-40 px-4 relative overflow-hidden">
+      <div className="absolute inset-0 bg-[#000]" />
+      <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-purple-600/[0.03] blur-[200px] rounded-full pointer-events-none" />
 
       <div className="max-w-7xl mx-auto relative z-10">
-        {/* Header */}
-        <div className="text-center mb-16">
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+        <div className="grid lg:grid-cols-2 gap-20 items-center">
+
+          {/* Left: The visualization */}
+          <motion.div
+            initial={{ opacity: 0, x: -30 }}
+            whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="text-sm font-medium text-purple-400 uppercase tracking-[0.2em] mb-4"
+            transition={{ duration: 0.8 }}
+            className="relative order-2 lg:order-1"
           >
-            Team Metrics
-          </motion.p>
-          <motion.h2
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-[-0.03em] text-white mb-6"
-          >
-            Know who's{' '}
-            <span className="bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">shipping quality.</span>
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed"
-          >
-            Track performance across your engineering org. Quality scores, PR volume, and a performance index that rewards both speed and craftsmanship.
-          </motion.p>
-        </div>
-
-        {/* Leaderboard visualization */}
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.8, delay: 0.3 }}
-          className="relative max-w-4xl mx-auto"
-        >
-          <div className="relative bg-[#0A0A0F] border border-white/[0.08] rounded-2xl overflow-hidden shadow-2xl shadow-black/50">
-            {/* Window chrome */}
-            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-white/[0.06] bg-white/[0.02]">
-              <div className="flex gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
-                <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
-                <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
-              </div>
-              <div className="flex-1 flex justify-center">
-                <div className="px-4 py-1 rounded-md bg-white/[0.04] border border-white/[0.06] text-[11px] text-gray-500 font-mono">
-                  sentra.ai/dashboard/leaderboard
-                </div>
-              </div>
-            </div>
-
-            {/* Chart area - scatter plot mockup */}
-            <div className="p-6 border-b border-white/[0.04]">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                    <BarChart3 className="w-4 h-4 text-amber-400" />
-                  </div>
-                  <span className="text-sm font-medium text-white">Performance Quadrant</span>
-                </div>
-                <div className="flex gap-3">
-                  <span className="flex items-center gap-1.5 text-[10px] text-gray-500">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" /> High Quality + Volume
-                  </span>
-                  <span className="flex items-center gap-1.5 text-[10px] text-gray-500">
-                    <span className="w-2 h-2 rounded-full bg-indigo-400" /> High Quality
-                  </span>
-                </div>
-              </div>
-
-              {/* SVG scatter chart */}
-              <div className="relative h-[180px] bg-white/[0.01] rounded-lg border border-white/[0.04] overflow-hidden">
-                {/* Grid lines */}
-                <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
-                  {[25, 50, 75].map(y => (
-                    <line key={`h-${y}`} x1="0%" y1={`${y}%`} x2="100%" y2={`${y}%`} stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                  ))}
-                  {[25, 50, 75].map(x => (
-                    <line key={`v-${x}`} x1={`${x}%`} y1="0%" x2={`${x}%`} y2="100%" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                  ))}
-                </svg>
-
-                {/* Axis labels */}
-                <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[9px] text-gray-600">PR Volume →</span>
-                <span className="absolute left-1 top-1/2 -translate-y-1/2 -rotate-90 text-[9px] text-gray-600">Avg Quality →</span>
-
-                {/* Scatter dots */}
-                {leaderboardData.map((dev, i) => {
-                  const x = (dev.prs / 60) * 85 + 8;
-                  const y = 100 - ((dev.avgScore - 50) / 50) * 85 - 8;
-                  const color = dev.avgScore >= 85 && dev.prs > 35 ? '#34d399' : dev.avgScore >= 85 ? '#818cf8' : '#fbbf24';
-                  return (
-                    <motion.div
-                      key={dev.login}
-                      initial={{ opacity: 0, scale: 0 }}
-                      whileInView={{ opacity: 1, scale: 1 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: 0.6 + i * 0.12, type: "spring", bounce: 0.4 }}
-                      className="absolute"
-                      style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' }}
-                    >
-                      <div className="relative group">
-                        <div className="w-3 h-3 rounded-full shadow-lg" style={{ backgroundColor: color, boxShadow: `0 0 10px ${color}50` }} />
-                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-black/80 border border-white/10 text-[9px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-                          {dev.name}
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Ranked list */}
-            <div className="p-6">
-              {/* Header row */}
-              <div className="grid grid-cols-[40px_1fr_80px_120px_80px] items-center px-3 py-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-600">
-                <span>Rank</span>
-                <span>Developer</span>
-                <span className="text-center">PRs</span>
-                <span className="text-center">Avg Quality</span>
-                <span className="text-center">Index</span>
-              </div>
-
-              {/* Rows */}
-              {leaderboardData.map((dev, i) => {
-                const accent = i === 0 ? 'text-amber-400 bg-amber-500/10 border-amber-500/25'
-                  : i === 1 ? 'text-zinc-300 bg-zinc-400/10 border-zinc-400/25'
-                  : i === 2 ? 'text-orange-400 bg-orange-500/10 border-orange-500/25'
-                  : 'text-zinc-600 bg-white/[0.03] border-white/[0.06]';
-                return (
+            {/* Main leaderboard card */}
+            <div className="bg-[#0A0A0F]/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl overflow-hidden shadow-2xl">
+              {/* Top 3 podium */}
+              <div className="p-6 pb-4 border-b border-white/[0.05]">
+                <div className="flex items-end justify-center gap-3 h-[160px]">
+                  {/* 2nd place */}
                   <motion.div
-                    key={dev.login}
+                    initial={{ opacity: 0, y: 40 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.5, duration: 0.6 }}
+                    className="flex flex-col items-center"
+                  >
+                    <img src={devs[1].avatar} alt={devs[1].name} className="w-10 h-10 rounded-full object-cover ring-2 ring-zinc-400/50 mb-2" />
+                    <span className="text-[11px] text-gray-400 mb-2">{devs[1].name}</span>
+                    <div className="w-16 bg-gradient-to-t from-zinc-700/30 to-zinc-600/20 rounded-t-lg flex items-end justify-center h-[70px] border border-white/[0.06] border-b-0">
+                      <span className="text-lg font-bold text-zinc-300 mb-2">2</span>
+                    </div>
+                  </motion.div>
+                  {/* 1st place */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 40 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.3, duration: 0.6 }}
+                    className="flex flex-col items-center"
+                  >
+                    <div className="relative">
+                      <img src={devs[0].avatar} alt={devs[0].name} className="w-12 h-12 rounded-full object-cover ring-2 ring-amber-400/60 mb-2" />
+                      <motion.div
+                        animate={{ rotate: [0, 5, -5, 0] }}
+                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                        className="absolute -top-3 -right-1 text-amber-400 text-sm"
+                      >
+                        👑
+                      </motion.div>
+                    </div>
+                    <span className="text-[11px] text-gray-300 font-medium mb-2">{devs[0].name}</span>
+                    <div className="w-16 bg-gradient-to-t from-amber-600/20 to-amber-500/10 rounded-t-lg flex items-end justify-center h-[95px] border border-amber-500/20 border-b-0">
+                      <span className="text-xl font-bold text-amber-400 mb-2">1</span>
+                    </div>
+                  </motion.div>
+                  {/* 3rd place */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 40 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.7, duration: 0.6 }}
+                    className="flex flex-col items-center"
+                  >
+                    <img src={devs[2].avatar} alt={devs[2].name} className="w-10 h-10 rounded-full object-cover ring-2 ring-orange-400/40 mb-2" />
+                    <span className="text-[11px] text-gray-400 mb-2">{devs[2].name}</span>
+                    <div className="w-16 bg-gradient-to-t from-orange-700/20 to-orange-600/10 rounded-t-lg flex items-end justify-center h-[50px] border border-orange-500/15 border-b-0">
+                      <span className="text-lg font-bold text-orange-400 mb-2">3</span>
+                    </div>
+                  </motion.div>
+                </div>
+              </div>
+
+              {/* Score list */}
+              <div className="p-4 space-y-1">
+                {devs.map((dev, i) => (
+                  <motion.div
+                    key={dev.name}
                     initial={{ opacity: 0, x: -20 }}
                     whileInView={{ opacity: 1, x: 0 }}
                     viewport={{ once: true }}
-                    transition={{ delay: 0.8 + i * 0.1, duration: 0.4 }}
-                    className="grid grid-cols-[40px_1fr_80px_120px_80px] items-center px-3 py-2.5 border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.02] transition-colors rounded-lg"
+                    transition={{ delay: 0.8 + i * 0.08, duration: 0.4 }}
+                    className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/[0.03] transition-colors"
                   >
-                    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-bold border ${accent}`}>
-                      {dev.rank}
-                    </span>
-                    <div className="flex items-center gap-2.5">
-                      <img src={dev.avatar} alt={dev.name} className="w-7 h-7 rounded-full object-cover ring-1 ring-white/10" />
-                      <span className="text-sm font-medium text-gray-200">{dev.name}</span>
+                    <span className="text-[11px] font-bold text-gray-600 w-5 text-center">{i + 1}</span>
+                    <img src={dev.avatar} alt={dev.name} className="w-7 h-7 rounded-full object-cover" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-gray-200 font-medium">{dev.name}</span>
                     </div>
-                    <span className="text-center text-sm font-mono text-gray-400">{dev.prs}</span>
-                    <div className="flex items-center gap-2 px-2">
-                      <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                    <div className="flex items-center gap-3">
+                      <span className={`text-[11px] font-mono ${dev.trend.startsWith('+') ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {dev.trend}
+                      </span>
+                      <div className="w-16 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
                         <motion.div
                           initial={{ width: 0 }}
-                          whileInView={{ width: `${dev.avgScore}%` }}
+                          whileInView={{ width: `${dev.score}%` }}
                           viewport={{ once: true }}
-                          transition={{ delay: 1.0 + i * 0.1, duration: 0.8, ease: "easeOut" }}
-                          className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-indigo-400"
+                          transition={{ delay: 1 + i * 0.1, duration: 0.8, ease: "easeOut" }}
+                          className={`h-full rounded-full ${dev.score >= 90 ? 'bg-emerald-500' : dev.score >= 80 ? 'bg-indigo-500' : 'bg-amber-500'}`}
                         />
                       </div>
-                      <span className="text-[11px] font-mono text-gray-400 w-6 text-right">{dev.avgScore}</span>
+                      <span className="text-sm font-mono font-bold text-white w-7 text-right">{dev.score}</span>
                     </div>
-                    <span className="text-center text-sm font-mono text-emerald-400/80">{dev.index.toFixed(2)}</span>
                   </motion.div>
-                );
-              })}
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Glow effect */}
-          <div className="absolute -inset-4 -z-10 bg-gradient-to-b from-purple-500/[0.04] via-transparent to-indigo-500/[0.03] rounded-3xl blur-2xl" />
-        </motion.div>
+            {/* Floating mini chart card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20, x: 20 }}
+              whileInView={{ opacity: 1, y: 0, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 1.2, duration: 0.6 }}
+              className="absolute -bottom-6 -right-6 md:right-[-40px] bg-[#0A0A0F]/95 backdrop-blur-xl border border-white/[0.08] rounded-xl p-4 shadow-2xl w-[180px]"
+            >
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Team trend</div>
+              <div className="flex items-end gap-[3px] h-[40px]">
+                {weeklyData.map((val, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ height: 0 }}
+                    whileInView={{ height: `${(val / 100) * 40}px` }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 1.4 + i * 0.05, duration: 0.4 }}
+                    className="flex-1 rounded-sm bg-gradient-to-t from-purple-600/60 to-purple-400/40"
+                  />
+                ))}
+              </div>
+              <div className="flex justify-between mt-2">
+                <span className="text-[9px] text-gray-600">Mon</span>
+                <span className="text-[9px] text-gray-600">Sun</span>
+              </div>
+            </motion.div>
+          </motion.div>
+
+          {/* Right: Editorial copy */}
+          <div className="order-1 lg:order-2">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.7 }}
+            >
+              <p className="text-purple-400 text-sm font-medium tracking-[0.15em] uppercase mb-6">{t('leaderboard.badge')}</p>
+              <h2 className="text-4xl md:text-5xl lg:text-[3.5rem] font-bold tracking-[-0.03em] text-white leading-[1.1] mb-8">
+                {t('leaderboard.title')}{' '}
+                <span className="bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">{t('leaderboard.title.highlight')}</span>
+              </h2>
+              <p className="text-gray-400 text-lg leading-relaxed mb-10 max-w-lg">
+                {t('leaderboard.subtitle')}
+              </p>
+
+              {/* Key metrics */}
+              <div className="grid grid-cols-2 gap-6">
+                {[
+                  { value: '92', label: 'Top score this week', color: 'text-emerald-400' },
+                  { value: '47', label: 'PRs merged (top dev)', color: 'text-indigo-400' },
+                  { value: '+12%', label: 'Quality improvement', color: 'text-purple-400' },
+                  { value: '5', label: 'Active contributors', color: 'text-amber-400' },
+                ].map((m, i) => (
+                  <motion.div
+                    key={m.label}
+                    initial={{ opacity: 0, y: 15 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.4 + i * 0.1, duration: 0.5 }}
+                    className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]"
+                  >
+                    <div className={`text-2xl font-bold font-mono ${m.color}`}>{m.value}</div>
+                    <div className="text-[11px] text-gray-500 mt-1">{m.label}</div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </div>
       </div>
     </section>
   );
 }
 
-export default function LandingPage() {
+function LandingPageContent() {
   const { isAuthenticated } = useAuth();
+  const { lang, switchLang, t } = useLanguage();
 
   const heroRef = useRef(null);
   const { scrollYProgress: heroScroll } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
@@ -557,15 +478,23 @@ export default function LandingPage() {
             <img src="/logo_with_name.png" alt="Sentra" className="h-12 md:h-14" />
           </div>
           <nav className="hidden md:flex gap-8 text-sm font-medium text-gray-400">
-            <Link to="/agent" className="hover:text-white transition-colors duration-200">Agent</Link>
-            <Link to="/enterprise" className="hover:text-white transition-colors duration-200">Enterprise</Link>
-            <Link to="/pricing" className="hover:text-white transition-colors duration-200">Pricing</Link>
-            <Link to="/blog" className="hover:text-white transition-colors duration-200">Blog</Link>
+            <Link to="/agent" className="hover:text-white transition-colors duration-200">{t('nav.agent')}</Link>
+            <Link to="/enterprise" className="hover:text-white transition-colors duration-200">{t('nav.enterprise')}</Link>
+            <Link to="/pricing" className="hover:text-white transition-colors duration-200">{t('nav.pricing')}</Link>
+            <Link to="/blog" className="hover:text-white transition-colors duration-200">{t('nav.blog')}</Link>
           </nav>
-          <div className="flex items-center gap-4">
-            <Link to="/login" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Sign In</Link>
+          <div className="flex items-center gap-3">
+            {/* Language switcher */}
+            <button
+              onClick={() => switchLang(lang === 'en' ? 'ru' : 'en')}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/[0.08] hover:border-white/20 bg-white/[0.03] hover:bg-white/[0.06] transition-all text-sm text-gray-400 hover:text-white"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span className="text-xs font-medium uppercase">{lang}</span>
+            </button>
+            <Link to="/login" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">{t('nav.signin')}</Link>
             <Link to="/login" className="text-sm font-medium text-white px-5 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg shadow-lg shadow-indigo-500/20 transition-all duration-200 border border-indigo-500/50 hover:shadow-indigo-500/40 hover:scale-[1.02]">
-              Sign Up
+              {t('nav.signup')}
             </Link>
           </div>
         </div>
@@ -655,10 +584,10 @@ export default function LandingPage() {
                   transition={{ duration: 0.8, delay: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
                   className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-[-0.03em] text-white mb-6 leading-[1.05]"
                 >
-                  The intelligent gatekeeper{' '}
+                  {t('hero.title.line1')}{' '}
                   <span className="relative">
                     <span className="relative z-10 bg-gradient-to-r from-indigo-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
-                      for your engineering team.
+                      {t('hero.title.line2')}
                     </span>
                     <motion.span
                       className="absolute -inset-x-2 -inset-y-1 bg-indigo-500/10 rounded-lg -z-0"
@@ -676,7 +605,7 @@ export default function LandingPage() {
                   transition={{ duration: 0.7, delay: 0.8 }}
                   className="text-lg md:text-xl text-gray-400 leading-relaxed mb-10 max-w-lg"
                 >
-                  Your team moves fast with AI. But fast shouldn't mean sloppy. Every line earns its merge.
+                  {t('hero.subtitle')}
                 </motion.p>
 
                 <motion.div
@@ -686,11 +615,11 @@ export default function LandingPage() {
                   className="flex items-center gap-4"
                 >
                   <Link to="/login" className="group inline-flex items-center gap-2 text-white bg-indigo-600 hover:bg-indigo-500 px-7 py-3.5 rounded-xl font-medium transition-all duration-300 border border-indigo-500/50 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:scale-[1.02]">
-                    Get Started
+                    {t('hero.cta')}
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                   </Link>
                   <Link to="/samples" className="inline-flex items-center gap-2 text-gray-400 hover:text-white px-5 py-3.5 rounded-xl font-medium transition-all duration-300 border border-white/10 hover:border-white/20 hover:bg-white/[0.02]">
-                    See Demo
+                    {t('hero.demo')}
                   </Link>
                 </motion.div>
               </motion.div>
@@ -699,17 +628,17 @@ export default function LandingPage() {
         </motion.section>
 
         {/* ===== B2B TEAM SECTION ===== */}
-        <B2BTeamSection />
+        <B2BTeamSection t={t} />
 
         {/* ===== LEADERBOARD METRICS ===== */}
-        <LeaderboardShowcase />
+        <LeaderboardShowcase t={t} />
 
         {/* ===== SCROLL TEXT REVEAL ===== */}
         <section className="py-40 px-4 relative">
           <GlowBeam />
           <div className="max-w-5xl mx-auto text-center">
             <ScrollRevealText
-              text="We built Sentra because AI-generated code still needs intelligent review. Not just linting — real architectural understanding, security analysis, and context-aware suggestions that make your team ship faster and safer."
+              text={t('scroll.text')}
               className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-[-0.02em] leading-[1.2] text-white"
             />
           </div>
@@ -728,7 +657,7 @@ export default function LandingPage() {
                   transition={{ duration: 0.5 }}
                   className="text-sm font-medium text-indigo-400 uppercase tracking-widest mb-4"
                 >
-                  How it works
+                  {t('how.badge')}
                 </motion.p>
                 <motion.h2
                   initial={{ opacity: 0, y: 30 }}
@@ -737,14 +666,14 @@ export default function LandingPage() {
                   transition={{ duration: 0.6, delay: 0.1 }}
                   className="text-4xl md:text-5xl font-bold tracking-tight text-white mb-16"
                 >
-                  Three steps.<br/>Zero friction.
+                  {t('how.title.line1')}<br/>{t('how.title.line2')}
                 </motion.h2>
 
                 <div className="space-y-6">
                   {[
-                    { icon: GitPullRequest, num: '01', title: 'Open a Pull Request', desc: 'Push code as you normally do. Sentra detects new PRs instantly via GitHub webhooks.' },
-                    { icon: Cpu, num: '02', title: 'AI Analyzes the Diff', desc: 'Context-aware analysis: security vulnerabilities, architectural issues, performance concerns, and code quality.' },
-                    { icon: ShieldCheck, num: '03', title: 'Review & Ship', desc: 'Inline comments appear on GitHub. One-click fixes for simple issues. Merge with confidence.' },
+                    { icon: GitPullRequest, num: '01', title: t('how.step1.title'), desc: t('how.step1.desc') },
+                    { icon: Cpu, num: '02', title: t('how.step2.title'), desc: t('how.step2.desc') },
+                    { icon: ShieldCheck, num: '03', title: t('how.step3.title'), desc: t('how.step3.desc') },
                   ].map((step, i) => (
                     <motion.div
                       key={i}
@@ -878,7 +807,7 @@ export default function LandingPage() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-4xl md:text-5xl font-bold tracking-tight text-white mb-20 text-center"
             >
-              Trusted at scale.
+              {t('stats.title')}
             </motion.h2>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
@@ -919,9 +848,9 @@ export default function LandingPage() {
                 transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
                 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-[-0.03em] text-white mb-8 leading-[1.05]"
               >
-                Stop shipping bugs.{' '}
+                {t('cta.title.line1')}{' '}
                 <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                  Start shipping confidence.
+                  {t('cta.title.line2')}
                 </span>
               </motion.h2>
             </ParallaxLayer>
@@ -933,7 +862,7 @@ export default function LandingPage() {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="text-lg text-gray-400 mb-12 max-w-2xl mx-auto"
             >
-              Join engineering teams at startups and enterprises who trust Sentra to guard their codebase.
+              {t('cta.subtitle')}
             </motion.p>
 
             <motion.div
@@ -943,7 +872,7 @@ export default function LandingPage() {
               transition={{ duration: 0.6, delay: 0.4 }}
             >
               <Link to="/login" className="group inline-flex items-center gap-3 text-white bg-indigo-600 hover:bg-indigo-500 px-8 py-4 rounded-xl font-medium text-lg transition-all duration-300 border border-indigo-500/50 shadow-2xl shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:scale-[1.02]">
-                Start Free Trial
+                {t('cta.button')}
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Link>
             </motion.div>
@@ -1014,5 +943,13 @@ export default function LandingPage() {
       </footer>
 
     </div>
+  );
+}
+
+export default function LandingPage() {
+  return (
+    <LanguageProvider>
+      <LandingPageContent />
+    </LanguageProvider>
   );
 }
