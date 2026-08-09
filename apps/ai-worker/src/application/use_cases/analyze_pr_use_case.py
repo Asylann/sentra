@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 from typing import Dict, Any, List
 
 from src.infrastructure.github.client import GitHubClient
@@ -71,6 +72,13 @@ class AnalyzePRUseCase:
         base_branch = payload.get("pull_request", {}).get("base", {}).get("ref", "unknown")
         head_branch = payload.get("pull_request", {}).get("head", {}).get("ref", "unknown")
         base_sha = payload.get("pull_request", {}).get("base", {}).get("sha", "unknown")
+
+        # PR volume: additions + deletions come free in the webhook payload.
+        # This is used by QualityScorer's Square Root Density model.
+        # The diff-line fallback fires if the payload omits these fields (rare).
+        _pr_additions = payload.get("pull_request", {}).get("additions", 0)
+        _pr_deletions = payload.get("pull_request", {}).get("deletions", 0)
+        pr_lines_changed: int = (_pr_additions + _pr_deletions) or 0
         
         # We need the head SHA to create the check run
         head_sha = payload.get("pull_request", {}).get("head", {}).get("sha", "")
@@ -168,6 +176,16 @@ class AnalyzePRUseCase:
             logger.info(f"Step 2: Fetching Git Diff from {repo_full_name}#{pr_number}")
             raw_diff = await self.github_client.fetch_pull_request_diff(repo_full_name, pr_number, installation_id)
 
+            # If the webhook payload did not include additions/deletions (e.g. push
+            # events or older installations), count the changed lines from the raw diff.
+            if pr_lines_changed == 0:
+                pr_lines_changed = sum(
+                    1 for line in raw_diff.splitlines()
+                    if (line.startswith('+') or line.startswith('-'))
+                    and not line.startswith('+++') and not line.startswith('---')
+                )
+                logger.info("pr_lines_changed derived from raw diff: %d", pr_lines_changed)
+
             # Step 3: Noise Filtering
             logger.info("Step 3: Filtering Noise")
             parsed_files = self._parse_raw_diff(raw_diff)
@@ -264,10 +282,16 @@ class AnalyzePRUseCase:
             else:
                 logger.info("No actionable code changes found after pruning. Skipping LLM analysis.")
 
-            # Step 8: Aggregate and Score (using org's quality_gate_threshold)
-            logger.info(f"Step 8: Calculating Final Quality Score (threshold={quality_gate_threshold})")
+            # Step 8: Aggregate and Score — Square Root Density model.
+            logger.info(
+                "Step 8: Calculating Final Quality Score "
+                "(threshold=%d, lines_changed=%d)",
+                quality_gate_threshold, pr_lines_changed,
+            )
             quality_score, conclusion = QualityScorer.evaluate(
-                all_findings, threshold=quality_gate_threshold
+                all_findings,
+                lines_changed=pr_lines_changed,
+                threshold=quality_gate_threshold,
             )
 
             counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}
@@ -275,31 +299,38 @@ class AnalyzePRUseCase:
                 sev = f.get("severity", "INFO").upper()
                 counts[sev] = counts.get(sev, 0) + 1
 
-            conclusion_label = "PASSED" if conclusion == "success" else "FAILED"
+            conclusion_label = "✅ PASSED" if conclusion == "success" else "❌ FAILED"
+            gate_emoji = "✅" if conclusion == "success" else "❌"
 
             suggestable_count = sum(1 for f in all_findings if f.get('suggestion_code', '').strip())
+            _sqrt_lines = max(math.sqrt(max(pr_lines_changed, 1)), 1.0)
 
             summary = (
                 f"## Sentra AI Security Review\n\n"
                 f"| | |\n"
                 f"|---|---|\n"
                 f"| **Quality Score** | **{quality_score} / 100** |\n"
-                f"| **Gate** | **{conclusion_label}** |\n"
-                f"| **Total Findings** | {len(all_findings)} |\n\n"
+                f"| **Gate** | {gate_emoji} **{conclusion_label}** |\n"
+                f"| **Total Findings** | {len(all_findings)} |\n"
+                f"| **PR Volume** | {pr_lines_changed} lines changed |\n\n"
                 f"### Findings Breakdown\n\n"
                 f"| Severity | Count |\n"
-                f"|---|---|\n"
-                f"| CRITICAL | {counts['CRITICAL']} |\n"
-                f"| HIGH | {counts['HIGH']} |\n"
-                f"| MEDIUM | {counts['MEDIUM']} |\n"
-                f"| LOW | {counts['LOW']} |\n"
-                f"| INFO | {counts['INFO']} |\n"
+                f"|----------|-------|\n"
+                f"| 🔴 CRITICAL | {counts['CRITICAL']} |\n"
+                f"| 🟠 HIGH | {counts['HIGH']} |\n"
+                f"| 🟡 MEDIUM | {counts['MEDIUM']} |\n"
+                f"| 🔵 LOW | {counts['LOW']} |\n"
+                f"| ⚪ INFO | {counts['INFO']} |\n\n"
+                f"---\n\n"
+                f"*Score mathematically adjusted for PR volume "
+                f"({pr_lines_changed} lines changed, √{pr_lines_changed} ≈ {_sqrt_lines:.1f}) "
+                f"using **Square Root Density** to ensure fair grading across PRs of all sizes.*\n"
             )
 
             if suggestable_count:
                 summary += (
-                    f"\n> **{suggestable_count}** finding(s) posted as inline PR Review suggestions "
-                    f"with auto-fix support. Look for the **Apply suggestion** button on each comment.\n"
+                    f"\n> **{suggestable_count}** finding(s) have one-click fixes. "
+                    f"Look for the **Apply suggestion** button on each inline comment.\n"
                 )
 
             # Step 9: Route findings to GitHub surfaces.
