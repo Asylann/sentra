@@ -7,3 +7,9 @@
     @apply bg-background text-textMain antialiased;
   }
 }
+
+@keyframes trace-lines {
+  100% {
+    stroke-dashoffset: 3000;
+  }
+}

@@ -97,6 +97,81 @@ function AnimatedCounter({ target, suffix = '' }) {
   return <span ref={ref}>{count.toLocaleString()}{suffix}</span>;
 }
 
+function AnimatedS({ className, delayOffset = 0, color = 'rgb(99, 102, 241)' }) {
+  // 3 slightly offset paths for the "stem" to mimic hand-drawn chaotic strokes
+  const STEM_PATHS = [
+    "M 480 200 C 220 200, 220 400, 420 420 C 620 440, 620 600, 320 600",
+    "M 500 180 C 180 180, 180 380, 380 400 C 580 420, 580 620, 280 620",
+    "M 520 220 C 200 220, 200 420, 400 440 C 600 460, 600 580, 300 580"
+  ];
+  
+  // 3 slightly offset paths for the "dots"
+  const DOT_PATHS = [
+    "M 520 180 C 220 190, 210 390, 410 410 C 610 430, 610 610, 310 610",
+    "M 490 220 C 190 210, 210 410, 390 390 C 590 410, 590 590, 290 590",
+    "M 510 190 C 210 210, 190 390, 410 420 C 590 450, 610 610, 300 620"
+  ];
+  
+  const getStyle = (item) => ({
+    stroke: color,
+    fill: 'none',
+    strokeWidth: 6,
+    strokeLinecap: 'round',
+    strokeMiterlimit: 10,
+    strokeDasharray: 1500,
+    animation: `trace-lines 4s linear infinite`,
+    animationDelay: `${item + delayOffset}s`
+  });
+
+  const getDotStyle = (item) => ({
+    stroke: color,
+    fill: 'none',
+    strokeWidth: 16,
+    strokeLinecap: 'round',
+    strokeMiterlimit: 10,
+    strokeDasharray: 500,
+    animation: `trace-lines 4s linear infinite`,
+    animationDelay: `${item + delayOffset}s`
+  });
+
+  return (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800">
+       <path style={getStyle(1)} d={STEM_PATHS[0]} />
+       <path style={getStyle(2)} d={STEM_PATHS[1]} />
+       <path style={getStyle(3)} d={STEM_PATHS[2]} />
+       <path style={getDotStyle(1.5)} d={DOT_PATHS[0]} />
+       <path style={getDotStyle(2.5)} d={DOT_PATHS[1]} />
+       <path style={getDotStyle(3.5)} d={DOT_PATHS[2]} />
+    </svg>
+  );
+}
+
+function AnimatedSBackground() {
+  return (
+    <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden opacity-[0.25]">
+      {/* Top Left - pushed to edge */}
+      <AnimatedS className="absolute top-[2%] left-[-2%] w-[25vh] h-[25vh] blur-[1px] rotate-[-15deg]" delayOffset={0} color="rgb(99, 102, 241)" />
+      <AnimatedS className="absolute top-[15%] left-[-5%] w-[35vh] h-[35vh] blur-[3px] rotate-[10deg] opacity-60" delayOffset={1.4} color="rgb(139, 92, 246)" />
+      
+      {/* Top Right - dense cluster */}
+      <AnimatedS className="absolute top-[5%] right-[5%] w-[30vh] h-[30vh] blur-[1px] rotate-[20deg]" delayOffset={0.7} color="rgb(99, 102, 241)" />
+      <AnimatedS className="absolute top-[20%] right-[-5%] w-[45vh] h-[45vh] blur-[4px] rotate-[-10deg]" delayOffset={2.1} color="rgb(139, 92, 246)" />
+      <AnimatedS className="absolute top-[35%] right-[2%] w-[20vh] h-[20vh] blur-[2px] rotate-[5deg] opacity-70" delayOffset={3.5} color="rgb(99, 102, 241)" />
+
+      {/* Bottom Left - pushed down */}
+      <AnimatedS className="absolute bottom-[5%] left-[5%] w-[30vh] h-[30vh] blur-[2px] rotate-[5deg]" delayOffset={0.3} color="rgb(139, 92, 246)" />
+      <AnimatedS className="absolute bottom-[-10%] left-[15%] w-[50vh] h-[50vh] blur-[5px] rotate-[-15deg] opacity-50" delayOffset={1.8} color="rgb(99, 102, 241)" />
+
+      {/* Bottom Right - corner focus */}
+      <AnimatedS className="absolute bottom-[10%] right-[10%] w-[35vh] h-[35vh] blur-[1px] rotate-[-5deg]" delayOffset={2.5} color="rgb(99, 102, 241)" />
+      <AnimatedS className="absolute bottom-[-5%] right-[25%] w-[40vh] h-[40vh] blur-[3px] rotate-[15deg] opacity-80" delayOffset={0.9} color="rgb(139, 92, 246)" />
+      
+      {/* Far Right Edge (middle-ish) */}
+      <AnimatedS className="absolute top-[55%] right-[-10%] w-[55vh] h-[55vh] blur-[6px] rotate-[25deg] opacity-40" delayOffset={1.2} color="rgb(99, 102, 241)" />
+    </div>
+  );
+}
+
 function B2BTeamSection({ t }) {
   const team = [
     { name: 'Alex', role: 'Backend', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face', score: 94, branch: 'feat/auth-flow', status: 'merged' },
@@ -467,6 +542,7 @@ function LandingPageContent() {
 
       {/* Grid background */}
       <div className="fixed inset-0 z-0 pointer-events-none">
+        <AnimatedSBackground />
         <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99,102,241,0.08), transparent)' }} />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808006_1px,transparent_1px),linear-gradient(to_bottom,#80808006_1px,transparent_1px)] bg-[size:64px_64px]" />
       </div>
