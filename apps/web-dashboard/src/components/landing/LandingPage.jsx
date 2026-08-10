@@ -1,7 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { motion, useScroll, useTransform, useSpring, useInView, useMotionValueEvent } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { FileCode, ShieldAlert, Code2, ArrowRight, GitPullRequest, ShieldCheck, Terminal, Zap, Eye, Lock, Cpu, BarChart3, GitMerge, Building2, Users, CheckCircle2, Globe } from 'lucide-react';
+import { FileCode, ShieldAlert, Code2, ArrowRight, GitPullRequest, ShieldCheck, Terminal, Zap, Eye, Lock, Cpu, BarChart3, GitMerge, Building2, Users, CheckCircle2, Globe, Crown } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage, LanguageProvider } from '../../context/LanguageContext';
 
@@ -333,189 +334,215 @@ function B2BTeamSection({ t }) {
 
 function LeaderboardShowcase({ t }) {
   const devs = [
-    { name: 'Alex K.', role: 'Backend Lead', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face', score: 92, prs: 47, trend: '+4' },
-    { name: 'Sara M.', role: 'Full-stack', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=face', score: 89, prs: 38, trend: '+7' },
-    { name: 'Kai R.', role: 'Infra', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=80&h=80&fit=crop&crop=face', score: 78, prs: 52, trend: '-2' },
-    { name: 'Jordan L.', role: 'Security', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face', score: 95, prs: 29, trend: '+1' },
-    { name: 'Dev P.', role: 'Frontend', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face', score: 81, prs: 33, trend: '+3' },
+    { name: 'Alex K.', role: 'Backend Lead', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face', score: 92, prs: 47, trend: '+4', index: 9.2 },
+    { name: 'Sara M.', role: 'Full-stack', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=face', score: 89, prs: 38, trend: '+7', index: 8.9 },
+    { name: 'Jordan L.', role: 'Security', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face', score: 95, prs: 29, trend: '+1', index: 8.5 },
+    { name: 'Dev P.', role: 'Frontend', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face', score: 81, prs: 33, trend: '+3', index: 8.1 },
+    { name: 'Kai R.', role: 'Infra', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=80&h=80&fit=crop&crop=face', score: 78, prs: 52, trend: '-2', index: 7.8 },
   ];
 
-  const weeklyData = [62, 71, 68, 79, 84, 88, 92];
+  const sortedDevs = [...devs].sort((a, b) => b.index - a.index);
+
+  const chartData = sortedDevs.map((dev) => ({
+    name: dev.name.split(' ')[0],
+    quality: dev.score,
+    volume: dev.prs,
+  })).reverse(); // Reverse so top developer is on the right, or keep it sorted left to right
 
   return (
     <section className="py-40 px-4 relative overflow-hidden">
       <div className="absolute inset-0 bg-[#000]" />
-      <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-purple-600/[0.03] blur-[200px] rounded-full pointer-events-none" />
+      
+      {/* Background ambient lighting */}
+      <div className="absolute top-1/2 left-1/4 w-[600px] h-[600px] bg-purple-600/[0.04] blur-[120px] rounded-full pointer-events-none -translate-y-1/2" />
+      <div className="absolute top-1/3 right-1/4 w-[500px] h-[500px] bg-indigo-600/[0.04] blur-[100px] rounded-full pointer-events-none" />
 
       <div className="max-w-7xl mx-auto relative z-10">
         <div className="grid lg:grid-cols-2 gap-20 items-center">
+          
+          {/* Left: Premium Visualization */}
+          <PerspectiveCard delay={0.2} className="relative order-2 lg:order-1 perspective-[2000px]">
+            {/* Main Container */}
+            <div className="relative bg-[#0A0A0F]/80 backdrop-blur-3xl border border-white/[0.08] rounded-[2rem] overflow-hidden shadow-[0_0_100px_-20px_rgba(99,102,241,0.15)] ring-1 ring-white/[0.02]">
+              
+              {/* Premium Chart Section */}
+              <div className="relative p-6 border-b border-white/[0.05] bg-gradient-to-b from-indigo-500/[0.03] to-transparent">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-white font-medium mb-1">Developer Performance</h3>
+                    <p className="text-[12px] text-gray-500">Quality score vs. PR Volume (Top Developers)</p>
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px] font-medium text-gray-400">
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-400" /> Quality</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-purple-500/30 border border-purple-500/50" /> Volume</span>
+                  </div>
+                </div>
 
-          {/* Left: The visualization */}
-          <motion.div
-            initial={{ opacity: 0, x: -30 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
-            className="relative order-2 lg:order-1"
-          >
-            {/* Main leaderboard card */}
-            <div className="bg-[#0A0A0F]/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl overflow-hidden shadow-2xl">
-              {/* Top 3 podium */}
-              <div className="p-6 pb-4 border-b border-white/[0.05]">
-                <div className="flex items-end justify-center gap-3 h-[160px]">
-                  {/* 2nd place */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 40 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.5, duration: 0.6 }}
-                    className="flex flex-col items-center"
-                  >
-                    <img src={devs[1].avatar} alt={devs[1].name} className="w-10 h-10 rounded-full object-cover ring-2 ring-zinc-400/50 mb-2" />
-                    <span className="text-[11px] text-gray-400 mb-2">{devs[1].name}</span>
-                    <div className="w-16 bg-gradient-to-t from-zinc-700/30 to-zinc-600/20 rounded-t-lg flex items-end justify-center h-[70px] border border-white/[0.06] border-b-0">
-                      <span className="text-lg font-bold text-zinc-300 mb-2">2</span>
-                    </div>
-                  </motion.div>
-                  {/* 1st place */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 40 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.3, duration: 0.6 }}
-                    className="flex flex-col items-center"
-                  >
-                    <div className="relative">
-                      <img src={devs[0].avatar} alt={devs[0].name} className="w-12 h-12 rounded-full object-cover ring-2 ring-amber-400/60 mb-2" />
-                      <motion.div
-                        animate={{ rotate: [0, 5, -5, 0] }}
-                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                        className="absolute -top-3 -right-1 text-amber-400 text-sm"
-                      >
-                        👑
-                      </motion.div>
-                    </div>
-                    <span className="text-[11px] text-gray-300 font-medium mb-2">{devs[0].name}</span>
-                    <div className="w-16 bg-gradient-to-t from-amber-600/20 to-amber-500/10 rounded-t-lg flex items-end justify-center h-[95px] border border-amber-500/20 border-b-0">
-                      <span className="text-xl font-bold text-amber-400 mb-2">1</span>
-                    </div>
-                  </motion.div>
-                  {/* 3rd place */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 40 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.7, duration: 0.6 }}
-                    className="flex flex-col items-center"
-                  >
-                    <img src={devs[2].avatar} alt={devs[2].name} className="w-10 h-10 rounded-full object-cover ring-2 ring-orange-400/40 mb-2" />
-                    <span className="text-[11px] text-gray-400 mb-2">{devs[2].name}</span>
-                    <div className="w-16 bg-gradient-to-t from-orange-700/20 to-orange-600/10 rounded-t-lg flex items-end justify-center h-[50px] border border-orange-500/15 border-b-0">
-                      <span className="text-lg font-bold text-orange-400 mb-2">3</span>
-                    </div>
-                  </motion.div>
+                <div className="h-[200px] w-full -ml-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorQuality" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#818cf8" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#818cf8" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.03)" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 11 }} dy={10} />
+                      <YAxis yAxisId="left" hide domain={[60, 100]} />
+                      <YAxis yAxisId="right" orientation="right" hide domain={[0, 60]} />
+                      <RechartsTooltip 
+                        contentStyle={{ backgroundColor: '#18181b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.5)' }}
+                        itemStyle={{ color: '#e4e4e7', fontSize: '12px' }}
+                        labelStyle={{ color: '#a1a1aa', fontSize: '11px', marginBottom: '4px' }}
+                      />
+                      <Area yAxisId="left" type="monotone" dataKey="quality" stroke="#818cf8" strokeWidth={3} fillOpacity={1} fill="url(#colorQuality)" />
+                      <Area yAxisId="right" type="step" dataKey="volume" stroke="#a855f7" strokeWidth={2} strokeDasharray="4 4" fill="transparent" />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
 
-              {/* Score list */}
-              <div className="p-4 space-y-1">
-                {devs.map((dev, i) => (
-                  <motion.div
-                    key={dev.name}
-                    initial={{ opacity: 0, x: -20 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.8 + i * 0.08, duration: 0.4 }}
-                    className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/[0.03] transition-colors"
-                  >
-                    <span className="text-[11px] font-bold text-gray-600 w-5 text-center">{i + 1}</span>
-                    <img src={dev.avatar} alt={dev.name} className="w-7 h-7 rounded-full object-cover" />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm text-gray-200 font-medium">{dev.name}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`text-[11px] font-mono ${dev.trend.startsWith('+') ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {dev.trend}
-                      </span>
-                      <div className="w-16 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          whileInView={{ width: `${dev.score}%` }}
-                          viewport={{ once: true }}
-                          transition={{ delay: 1 + i * 0.1, duration: 0.8, ease: "easeOut" }}
-                          className={`h-full rounded-full ${dev.score >= 90 ? 'bg-emerald-500' : dev.score >= 80 ? 'bg-indigo-500' : 'bg-amber-500'}`}
-                        />
+              {/* Leaderboard List Header */}
+              <div className="grid grid-cols-[40px_1fr_80px_100px] items-center px-6 py-3 border-b border-white/[0.05] bg-white/[0.01] text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                <span>Rank</span>
+                <span>Developer</span>
+                <span className="text-right">Avg Score</span>
+                <span className="text-right pr-2">Perf Index</span>
+              </div>
+
+              {/* Animated List */}
+              <div className="relative bg-[#050508]/40">
+                {sortedDevs.map((dev, i) => {
+                  const isTop = i === 0;
+                  return (
+                    <motion.div
+                      key={dev.name}
+                      initial={{ opacity: 0, x: -20 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: 0.6 + i * 0.1, duration: 0.5, ease: "easeOut" }}
+                      whileHover={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
+                      className="group grid grid-cols-[40px_1fr_80px_100px] items-center px-6 py-4 border-b border-white/[0.03] last:border-0 transition-colors cursor-default"
+                    >
+                      {/* Rank */}
+                      <div>
+                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md text-[11px] font-bold ${
+                          isTop ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-[0_0_15px_-3px_rgba(245,158,11,0.3)]' :
+                          i === 1 ? 'bg-zinc-300/10 text-zinc-300 border border-zinc-400/20' :
+                          i === 2 ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
+                          'bg-white/[0.03] text-gray-500 border border-transparent group-hover:text-gray-300'
+                        }`}>
+                          {i + 1}
+                        </span>
                       </div>
-                      <span className="text-sm font-mono font-bold text-white w-7 text-right">{dev.score}</span>
-                    </div>
-                  </motion.div>
-                ))}
+                      
+                      {/* Developer */}
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="relative shrink-0">
+                          <img src={dev.avatar} alt={dev.name} className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10" />
+                          {isTop && (
+                            <div className="absolute -inset-1 rounded-full border border-amber-500/30 animate-pulse pointer-events-none" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-gray-200 truncate flex items-center gap-1.5">
+                            {dev.name}
+                            {isTop && <Crown className="w-3 h-3 text-amber-400" />}
+                          </div>
+                          <div className="text-[11px] text-gray-500 truncate flex items-center gap-2">
+                            {dev.role} <span className="w-1 h-1 rounded-full bg-gray-700" /> {dev.prs} PRs
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Score */}
+                      <div className="text-right">
+                        <span className={`text-sm font-mono font-medium ${dev.score >= 90 ? 'text-emerald-400' : 'text-indigo-400'}`}>
+                          {dev.score}
+                        </span>
+                      </div>
+
+                      {/* Performance Index */}
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-12 h-1 rounded-full bg-black/40 overflow-hidden shrink-0 hidden sm:block">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            whileInView={{ width: `${(dev.index / 10) * 100}%` }}
+                            viewport={{ once: true }}
+                            transition={{ delay: 1 + i * 0.1, duration: 1, ease: "easeOut" }}
+                            className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-400"
+                          />
+                        </div>
+                        <span className="text-[13px] font-mono font-semibold text-white/90 w-8 text-right">
+                          {dev.index.toFixed(1)}
+                        </span>
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             </div>
-
-            {/* Floating mini chart card */}
-            <motion.div
-              initial={{ opacity: 0, y: 20, x: 20 }}
-              whileInView={{ opacity: 1, y: 0, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 1.2, duration: 0.6 }}
-              className="absolute -bottom-6 -right-6 md:right-[-40px] bg-[#0A0A0F]/95 backdrop-blur-xl border border-white/[0.08] rounded-xl p-4 shadow-2xl w-[180px]"
-            >
-              <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Team trend</div>
-              <div className="flex items-end gap-[3px] h-[40px]">
-                {weeklyData.map((val, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ height: 0 }}
-                    whileInView={{ height: `${(val / 100) * 40}px` }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 1.4 + i * 0.05, duration: 0.4 }}
-                    className="flex-1 rounded-sm bg-gradient-to-t from-purple-600/60 to-purple-400/40"
-                  />
-                ))}
-              </div>
-              <div className="flex justify-between mt-2">
-                <span className="text-[9px] text-gray-600">Mon</span>
-                <span className="text-[9px] text-gray-600">Sun</span>
-              </div>
-            </motion.div>
-          </motion.div>
+          </PerspectiveCard>
 
           {/* Right: Editorial copy */}
           <div className="order-1 lg:order-2">
             <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, x: 30 }}
+              whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.7 }}
+              transition={{ duration: 0.8 }}
             >
-              <p className="text-purple-400 text-sm font-medium tracking-[0.15em] uppercase mb-6">{t('leaderboard.badge')}</p>
-              <h2 className="text-4xl md:text-5xl lg:text-[3.5rem] font-bold tracking-[-0.03em] text-white leading-[1.1] mb-8">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 mb-6">
+                <Zap className="w-3.5 h-3.5 text-purple-400" />
+                <span className="text-purple-300 text-[11px] font-semibold tracking-wider uppercase">{t('leaderboard.badge')}</span>
+              </div>
+              
+              <h2 className="text-4xl md:text-5xl lg:text-[3.5rem] font-bold tracking-[-0.03em] text-white leading-[1.1] mb-6">
                 {t('leaderboard.title')}{' '}
-                <span className="bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">{t('leaderboard.title.highlight')}</span>
+                <span className="relative whitespace-nowrap">
+                  <span className="relative z-10 bg-gradient-to-r from-purple-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+                    {t('leaderboard.title.highlight')}
+                  </span>
+                  <motion.span 
+                    className="absolute -bottom-2 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-500 to-cyan-500"
+                    initial={{ scaleX: 0 }}
+                    whileInView={{ scaleX: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.5, duration: 0.8, ease: "easeOut" }}
+                    style={{ transformOrigin: "left" }}
+                  />
+                </span>
               </h2>
-              <p className="text-gray-400 text-lg leading-relaxed mb-10 max-w-lg">
+              
+              <p className="text-gray-400 text-lg leading-relaxed mb-12 max-w-lg">
                 {t('leaderboard.subtitle')}
               </p>
 
-              {/* Key metrics */}
-              <div className="grid grid-cols-2 gap-6">
+              {/* Key metrics grid */}
+              <div className="grid grid-cols-2 gap-5">
                 {[
-                  { value: '92', label: 'Top score this week', color: 'text-emerald-400' },
-                  { value: '47', label: 'PRs merged (top dev)', color: 'text-indigo-400' },
-                  { value: '+12%', label: 'Quality improvement', color: 'text-purple-400' },
-                  { value: '5', label: 'Active contributors', color: 'text-amber-400' },
+                  { value: '9.2', label: 'Top performance index', color: 'from-emerald-400 to-emerald-300', icon: Crown },
+                  { value: '254', label: 'PRs analyzed this month', color: 'from-indigo-400 to-indigo-300', icon: GitMerge },
+                  { value: '+18%', label: 'Organization quality lift', color: 'from-purple-400 to-purple-300', icon: BarChart3 },
+                  { value: '12', label: 'Active contributors', color: 'from-amber-400 to-amber-300', icon: Users },
                 ].map((m, i) => (
                   <motion.div
                     key={m.label}
-                    initial={{ opacity: 0, y: 15 }}
+                    initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    transition={{ delay: 0.4 + i * 0.1, duration: 0.5 }}
-                    className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]"
+                    transition={{ delay: 0.6 + i * 0.1, duration: 0.6, type: 'spring' }}
+                    whileHover={{ y: -2, backgroundColor: 'rgba(255,255,255,0.03)' }}
+                    className="p-5 rounded-2xl bg-gradient-to-br from-white/[0.03] to-transparent border border-white/[0.08] relative overflow-hidden group cursor-default"
                   >
-                    <div className={`text-2xl font-bold font-mono ${m.color}`}>{m.value}</div>
-                    <div className="text-[11px] text-gray-500 mt-1">{m.label}</div>
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <m.icon className="w-12 h-12 text-white" />
+                    </div>
+                    <div className={`text-3xl font-bold font-mono bg-gradient-to-br ${m.color} bg-clip-text text-transparent drop-shadow-sm mb-1`}>
+                      <AnimatedCounter target={parseFloat(m.value) || 0} suffix={m.value.includes('%') ? '%' : ''} />
+                    </div>
+                    <div className="text-[12px] font-medium text-gray-400">{m.label}</div>
                   </motion.div>
                 ))}
               </div>
