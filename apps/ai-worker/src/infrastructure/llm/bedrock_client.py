@@ -1,12 +1,14 @@
 import time
 import logging
 import asyncio
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 
 import boto3
 from botocore.config import Config
 from pydantic_settings import BaseSettings
+
+from src.domain.entities.sentra_config import SentraConfig
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +75,55 @@ class BedrockClaudeClient:
         # ThreadPool for isolating blocking boto3 calls from the asyncio loop
         self._executor = ThreadPoolExecutor(max_workers=5)
 
-    async def analyze_diff(self, system_prompt: str, pruned_diff: str) -> List[Dict[str, Any]]:
+    @staticmethod
+    def _build_custom_rules_xml(config: SentraConfig) -> str:
+        """
+        Builds a ``<repository_custom_rules>`` XML block from the parsed
+        ``.sentra.yml`` configuration and returns it as a string.
+
+        Returns an empty string when the config carries no rules so the
+        caller can skip the injection transparently.
+        """
+        if not config.has_rules:
+            return ""
+
+        lines: list[str] = ["<repository_custom_rules>"]
+        lines.append(
+            "The repository owner has defined the following custom rules. "
+            "You MUST strictly adhere to all of them when generating "
+            "suggestion_code and evaluating this PR."
+        )
+
+        if config.architectural_guidelines:
+            lines.append("\nArchitectural Guidelines (flag violations as MEDIUM or higher):")
+            for rule in config.architectural_guidelines:
+                lines.append(f"  - {rule}")
+
+        if config.forbidden_patterns:
+            lines.append(
+                "\nForbidden Patterns (flag any occurrence in new code as HIGH):"
+            )
+            for pattern in config.forbidden_patterns:
+                lines.append(f"  - {pattern}")
+
+        if config.enforce_test_coverage:
+            lines.append(
+                "\nTest Coverage Enforcement: Flag any new public function or class "
+                "that lacks a corresponding test as a LOW finding."
+            )
+
+        if config.custom_prompt:
+            lines.append(f"\nAdditional Instructions:\n{config.custom_prompt}")
+
+        lines.append("</repository_custom_rules>")
+        return "\n".join(lines)
+
+    async def analyze_diff(
+        self,
+        system_prompt: str,
+        pruned_diff: str,
+        sentra_config: Optional[SentraConfig] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Sends the isolated diff and RAG context to Claude 3.5 Sonnet.
         Forces the LLM to invoke the 'publish_code_review_findings' tool to guarantee JSON schema.
@@ -179,11 +229,29 @@ class BedrockClaudeClient:
             }
         }
 
+        # Inject repository-level custom rules from .sentra.yml if present.
+        # The XML block is appended AFTER the RAG context so repo rules take
+        # the highest precedence in the prompt hierarchy.
+        if sentra_config is not None:
+            custom_rules_xml = self._build_custom_rules_xml(sentra_config)
+            if custom_rules_xml:
+                system_prompt = system_prompt + "\n\n" + custom_rules_xml
+                logger.info(
+                    "Injected .sentra.yml custom rules into system prompt "
+                    "(guidelines=%d, forbidden=%d, coverage=%s, custom_prompt=%s)",
+                    len(sentra_config.architectural_guidelines),
+                    len(sentra_config.forbidden_patterns),
+                    sentra_config.enforce_test_coverage,
+                    bool(sentra_config.custom_prompt),
+                )
+
         # Safeguard against massive diffs exceeding LLM input token limits
         # Approx 60,000 characters is safely within typical 16k-32k token limits
         max_chars = 60000
         if len(pruned_diff) > max_chars:
-            logger.warning(f"Diff size ({len(pruned_diff)} chars) exceeds {max_chars}, truncating.")
+            logger.warning(
+                "Diff size (%d chars) exceeds %d, truncating.", len(pruned_diff), max_chars
+            )
             pruned_diff = pruned_diff[:max_chars] + "\n\n... [DIFF TRUNCATED DUE TO SIZE LIMIT] ..."
 
         user_message = {

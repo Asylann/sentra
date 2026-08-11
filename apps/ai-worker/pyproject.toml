@@ -22,6 +22,7 @@ tree-sitter = "^0.22.0"        # AST parsing for context isolation
 protobuf = "^5.26.0"           # Protobuf deserialization of Kafka messages
 pgvector = "^0.3.0"            # pgvector Python adapter for RAG embeddings
 PyJWT = {extras = ["crypto"], version = "^2.8.0"} # For signing GitHub App JWTs
+pyyaml = "^6.0"                # Safe YAML parsing for .sentra.yml repo config
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.0"

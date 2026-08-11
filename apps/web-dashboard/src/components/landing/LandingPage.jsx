@@ -554,6 +554,301 @@ function LeaderboardShowcase({ t }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SentraYmlSection — "Configure everything in one file: .sentra.yml"
+// Animated YAML editor mockup with typewriter effect + floating rule badges
+// ─────────────────────────────────────────────────────────────────────────────
+
+const YAML_LINES = [
+  { indent: 0, content: '# .sentra.yml — repository configuration', type: 'comment' },
+  { indent: 0, content: '', type: 'blank' },
+  { indent: 0, content: 'architectural_guidelines:', type: 'key' },
+  { indent: 1, content: '- "Never import infrastructure in domain layer"', type: 'string' },
+  { indent: 1, content: '- "All endpoints must go through a use case"', type: 'string' },
+  { indent: 0, content: '', type: 'blank' },
+  { indent: 0, content: 'forbidden_patterns:', type: 'key' },
+  { indent: 1, content: '- "eval("', type: 'string' },
+  { indent: 1, content: '- "os.system("', type: 'string' },
+  { indent: 1, content: '- "exec("', type: 'string' },
+  { indent: 0, content: '', type: 'blank' },
+  { indent: 0, content: 'enforce_test_coverage:', type: 'key', value: ' true' },
+  { indent: 0, content: '', type: 'blank' },
+  { indent: 0, content: 'custom_prompt:', type: 'key' },
+  { indent: 1, content: '"HIPAA-regulated codebase. Any PII exposure', type: 'string' },
+  { indent: 2, content: 'in logs is CRITICAL severity."', type: 'string' },
+];
+
+const typeColors = {
+  comment: 'text-gray-600',
+  key: 'text-indigo-300',
+  string: 'text-emerald-400/90',
+  blank: '',
+};
+
+function YamlLine({ line, index, isVisible }) {
+  const ref = useRef(null);
+  const [shown, setShown] = useState(false);
+
+  useEffect(() => {
+    if (!isVisible) return;
+    const timer = setTimeout(() => setShown(true), index * 90);
+    return () => clearTimeout(timer);
+  }, [isVisible, index]);
+
+  if (!shown) return <div className="h-[1.6em]" />;
+
+  const color = typeColors[line.type] || 'text-gray-300';
+  const indentStyle = { paddingLeft: `${line.indent * 20}px` };
+
+  if (line.type === 'blank') return <div className="h-[1.6em]" />;
+
+  const renderContent = () => {
+    if (line.type === 'key' && line.value) {
+      return (
+        <>
+          <span className="text-indigo-300">{line.content}</span>
+          <span className="text-purple-300">{line.value}</span>
+        </>
+      );
+    }
+    if (line.type === 'key') {
+      return <span className="text-indigo-300">{line.content}</span>;
+    }
+    if (line.type === 'comment') {
+      return <span className="text-gray-600 italic">{line.content}</span>;
+    }
+    // string / list item
+    const dashIdx = line.content.indexOf('- ');
+    if (dashIdx !== -1) {
+      return (
+        <>
+          <span className="text-gray-500">{'- '}</span>
+          <span className="text-emerald-400/90">{line.content.slice(2)}</span>
+        </>
+      );
+    }
+    return <span className={color}>{line.content}</span>;
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.25, ease: 'easeOut' }}
+      className="flex items-start leading-[1.7em] font-mono text-[13px]"
+      style={indentStyle}
+    >
+      {renderContent()}
+      {index === YAML_LINES.length - 1 && (
+        <motion.span
+          animate={{ opacity: [1, 0, 1] }}
+          transition={{ duration: 0.9, repeat: Infinity }}
+          className="inline-block w-[2px] h-[1em] bg-indigo-400 ml-0.5 translate-y-[2px]"
+        />
+      )}
+    </motion.div>
+  );
+}
+
+function SentraYmlSection() {
+  const editorRef = useRef(null);
+  const sectionRef = useRef(null);
+  const isEditorInView = useInView(editorRef, { once: true, margin: '-100px' });
+  const isSectionInView = useInView(sectionRef, { once: true, margin: '-80px' });
+
+  const floatingBadges = [
+    { text: '✓ Architectural rules applied', color: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300', delay: 1.8, x: '70%', y: '12%' },
+    { text: '✓ Forbidden pattern caught', color: 'border-rose-500/30 bg-rose-500/10 text-rose-300', delay: 2.6, x: '55%', y: '82%' },
+    { text: '✓ Test coverage enforced', color: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300', delay: 3.2, x: '60%', y: '48%' },
+  ];
+
+  const features = [
+    {
+      icon: FileCode,
+      title: 'One file, full control',
+      desc: 'Drop a .sentra.yml in your repo root. Sentra reads it on every PR at the exact commit SHA — no dashboard required.',
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Repo-level, not org-level',
+      desc: 'Rules are scoped to each repository. A fintech service can enforce HIPAA rules while a docs repo stays relaxed.',
+    },
+    {
+      icon: Zap,
+      title: 'Injected into the AI prompt',
+      desc: 'Guidelines, forbidden patterns and custom instructions flow directly into the Claude system prompt — highest priority.',
+    },
+  ];
+
+  return (
+    <section ref={sectionRef} className="py-40 px-4 relative overflow-hidden">
+      {/* Background */}
+      <div className="absolute inset-0 bg-[#000]" />
+      <div className="absolute top-1/2 left-1/3 w-[700px] h-[700px] bg-indigo-600/[0.03] blur-[140px] rounded-full pointer-events-none -translate-y-1/2" />
+      <div className="absolute top-1/3 right-0 w-[400px] h-[400px] bg-purple-600/[0.03] blur-[100px] rounded-full pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto relative z-10">
+        <div className="grid lg:grid-cols-2 gap-20 items-center">
+
+          {/* ── Left: Editorial copy ── */}
+          <motion.div
+            initial={{ opacity: 0, x: -40 }}
+            animate={isSectionInView ? { opacity: 1, x: 0 } : {}}
+            transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
+          >
+            {/* Badge */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={isSectionInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 mb-8"
+            >
+              <FileCode className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="text-indigo-300 text-[11px] font-semibold tracking-wider uppercase">
+                Repo-level configuration
+              </span>
+            </motion.div>
+
+            {/* Headline */}
+            <motion.h2
+              initial={{ opacity: 0, y: 24 }}
+              animate={isSectionInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.7, delay: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="text-4xl md:text-5xl lg:text-[3.3rem] font-bold tracking-[-0.03em] text-white leading-[1.1] mb-6"
+            >
+              Configure everything{' '}
+              <br className="hidden lg:block" />
+              in one file.{' '}
+              <span className="relative">
+                <span className="relative z-10 bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
+                  .sentra.yml
+                </span>
+                <motion.span
+                  className="absolute -bottom-1 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-cyan-500"
+                  initial={{ scaleX: 0 }}
+                  animate={isSectionInView ? { scaleX: 1 } : {}}
+                  transition={{ delay: 0.9, duration: 0.7, ease: 'easeOut' }}
+                  style={{ transformOrigin: 'left' }}
+                />
+              </span>
+            </motion.h2>
+
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              animate={isSectionInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.6, delay: 0.35 }}
+              className="text-gray-400 text-lg leading-relaxed mb-12 max-w-lg"
+            >
+              Give every team self-serve control over the AI review process.
+              Architectural rules, forbidden patterns, test coverage checks —
+              all expressed as plain YAML, version-controlled alongside your code.
+            </motion.p>
+
+            {/* Feature list */}
+            <div className="space-y-6">
+              {features.map((feat, i) => (
+                <motion.div
+                  key={feat.title}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={isSectionInView ? { opacity: 1, x: 0 } : {}}
+                  transition={{ duration: 0.6, delay: 0.5 + i * 0.15, ease: [0.25, 0.46, 0.45, 0.94] }}
+                  className="flex items-start gap-4 group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 flex items-center justify-center flex-shrink-0 group-hover:border-indigo-500/40 group-hover:shadow-lg group-hover:shadow-indigo-500/10 transition-all duration-400">
+                    <feat.icon className="w-5 h-5 text-indigo-400 group-hover:text-indigo-300 transition-colors" />
+                  </div>
+                  <div>
+                    <div className="text-white font-semibold text-sm mb-1">{feat.title}</div>
+                    <div className="text-gray-500 text-sm leading-relaxed">{feat.desc}</div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* ── Right: YAML editor mockup ── */}
+          <PerspectiveCard delay={0.3} className="relative">
+            {/* Ambient glow behind editor */}
+            <div className="absolute -inset-8 bg-indigo-500/[0.04] blur-[60px] rounded-[3rem] pointer-events-none" />
+
+            <div ref={editorRef} className="relative">
+              {/* Editor chrome */}
+              <div className="bg-[#0A0A0F]/95 backdrop-blur-xl border border-white/[0.08] rounded-[1.5rem] overflow-hidden shadow-[0_0_80px_-20px_rgba(99,102,241,0.2)] ring-1 ring-white/[0.02]">
+
+                {/* Title bar */}
+                <div className="flex items-center gap-3 px-5 py-3.5 bg-[#0d0d12] border-b border-white/[0.06]">
+                  <div className="flex gap-2">
+                    <div className="w-3 h-3 rounded-full bg-[#ff5f56]/70" />
+                    <div className="w-3 h-3 rounded-full bg-[#ffbd2e]/70" />
+                    <div className="w-3 h-3 rounded-full bg-[#27c93f]/70" />
+                  </div>
+                  <div className="flex-1 flex items-center justify-center gap-2">
+                    <FileCode className="w-3.5 h-3.5 text-gray-500" />
+                    <span className="font-mono text-[12px] text-gray-400 tracking-wide">.sentra.yml</span>
+                  </div>
+                  {/* Live indicator */}
+                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20">
+                    <motion.div
+                      animate={{ opacity: [1, 0.3, 1] }}
+                      transition={{ duration: 1.8, repeat: Infinity }}
+                      className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+                    />
+                    <span className="text-[10px] font-semibold text-emerald-400 tracking-wider uppercase">Live</span>
+                  </div>
+                </div>
+
+                {/* Code body */}
+                <div className="flex">
+                  {/* Line numbers */}
+                  <div className="select-none border-r border-white/[0.05] bg-[#08080d]/60 px-4 py-5 text-right">
+                    {YAML_LINES.map((_, i) => (
+                      <div key={i} className="leading-[1.7em] text-[11px] font-mono text-gray-700">
+                        {i + 1}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* YAML content with typewriter */}
+                  <div className="flex-1 px-5 py-5 overflow-hidden">
+                    {YAML_LINES.map((line, i) => (
+                      <YamlLine key={i} line={line} index={i} isVisible={isEditorInView} />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Status bar */}
+                <div className="flex items-center justify-between px-5 py-2.5 bg-indigo-600/10 border-t border-indigo-500/15">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-3 h-3 text-indigo-400" />
+                    <span className="text-[11px] text-indigo-300 font-medium">Sentra config valid</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-gray-600">YAML · UTF-8</span>
+                </div>
+              </div>
+
+              {/* Floating rule-applied badges */}
+              {floatingBadges.map((badge, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                  animate={isEditorInView ? { opacity: 1, scale: 1, y: 0 } : {}}
+                  transition={{ delay: badge.delay, duration: 0.5, type: 'spring', stiffness: 160 }}
+                  className={`absolute hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full border text-[11px] font-semibold whitespace-nowrap backdrop-blur-sm shadow-lg ${badge.color}`}
+                  style={{ left: badge.x, top: badge.y, transform: 'translate(-50%, -50%)' }}
+                >
+                  {badge.text}
+                </motion.div>
+              ))}
+            </div>
+          </PerspectiveCard>
+
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function LandingPageContent() {
   const { isAuthenticated } = useAuth();
   const { lang, switchLang, t } = useLanguage();
@@ -735,6 +1030,9 @@ function LandingPageContent() {
 
         {/* ===== LEADERBOARD METRICS ===== */}
         <LeaderboardShowcase t={t} />
+
+        {/* ===== .SENTRA.YML CONFIGURATION ===== */}
+        <SentraYmlSection />
 
         {/* ===== SCROLL TEXT REVEAL ===== */}
         <section className="py-40 px-4 relative">

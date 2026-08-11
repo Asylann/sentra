@@ -14,6 +14,7 @@ from src.infrastructure.llm.bedrock_client import BedrockClaudeClient
 from src.application.services.deterministic_scanner import DeterministicScanner
 from src.application.services.quality_scorer import QualityScorer
 from src.infrastructure.redis.redis_publisher import RedisPublisher
+from src.domain.entities.sentra_config import SentraConfig
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from src.infrastructure.database.models import Organization, Repository, Developer, PullRequest, ReviewFinding
 from sqlalchemy.dialects.postgresql import insert
@@ -253,7 +254,39 @@ class AnalyzePRUseCase:
 
             
             final_diff_prompt = pruned_diff.final_prompt_string
-            
+
+            # ──────────────────────────────────────────────────────────────────
+            # Step 5b: Fetch repository-level .sentra.yml custom rules
+            # We query the *repository tree* at head_sha — NOT the PR diff.
+            # This means the config is applied even when the file wasn't
+            # changed in this PR, which is the correct and expected behaviour.
+            # A missing file (404) yields a no-op SentraConfig so the rest of
+            # the pipeline is completely unaffected.
+            # ──────────────────────────────────────────────────────────────────
+            logger.info(
+                "Step 5b: Fetching .sentra.yml from %s@%s",
+                repo_full_name,
+                head_sha[:8],
+            )
+            raw_sentra_yml = await self.github_client.get_file_content(
+                repo_full_name=repo_full_name,
+                commit_sha=head_sha,
+                file_path=".sentra.yml",
+                installation_id=installation_id,
+            )
+            sentra_config = SentraConfig.from_yaml_string(raw_sentra_yml)
+            if sentra_config.has_rules:
+                logger.info(
+                    ".sentra.yml loaded: guidelines=%d, forbidden=%d, "
+                    "coverage=%s, custom_prompt=%s",
+                    len(sentra_config.architectural_guidelines),
+                    len(sentra_config.forbidden_patterns),
+                    sentra_config.enforce_test_coverage,
+                    bool(sentra_config.custom_prompt),
+                )
+            else:
+                logger.info(".sentra.yml not found or empty — using default review config.")
+
             if final_diff_prompt.strip():
                 # Step 6: RAG Context Retrieval
                 logger.info("Step 6: Retrieving RAG Context (Policies & Developer Metrics)")
@@ -277,7 +310,11 @@ class AnalyzePRUseCase:
                 
                 # Step 7: AWS Bedrock Claude 3 Inference (Level 2)
                 logger.info("Step 7: Executing AWS Bedrock Claude 3.5 Sonnet Inference")
-                llm_findings = await self.bedrock_client.analyze_diff(system_prompt, final_diff_prompt)
+                llm_findings = await self.bedrock_client.analyze_diff(
+                    system_prompt,
+                    final_diff_prompt,
+                    sentra_config=sentra_config,
+                )
                 all_findings.extend(llm_findings)
             else:
                 logger.info("No actionable code changes found after pruning. Skipping LLM analysis.")

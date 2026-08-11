@@ -169,3 +169,43 @@ class GitHubClient:
                 )
                 return None
 
+    async def get_file_content(
+        self,
+        repo_full_name: str,
+        commit_sha: str,
+        file_path: str,
+        installation_id: int,
+    ) -> Optional[str]:
+        """
+        Fetches the raw text content of ``file_path`` from the repository's
+        file tree at the exact ``commit_sha`` (typically the PR's ``head.sha``).
+
+        This intentionally queries the *repository tree*, not the PR diff, so
+        the file is returned even when it was not modified in the current PR.
+        A 404 (file absent in this repo/branch) is handled gracefully by
+        returning ``None`` — callers should treat ``None`` as "no config present".
+
+        Parameters
+        ----------
+        repo_full_name:
+            e.g. ``"acme/backend"``
+        commit_sha:
+            Full SHA of the commit to read the file from (use ``head.sha``).
+        file_path:
+            Repository-relative path, e.g. ``".sentra.yml"``.
+        installation_id:
+            GitHub App installation ID used to mint an ephemeral access token.
+
+        Returns
+        -------
+        Optional[str]
+            Raw UTF-8 file content, or ``None`` if the file does not exist or
+            cannot be fetched.
+        """
+        return await self.fetch_raw_file_content(
+            repo_full_name=repo_full_name,
+            file_path=file_path,
+            ref=commit_sha,
+            installation_id=installation_id,
+        )
+
