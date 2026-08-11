@@ -872,8 +872,11 @@ function LandingPageContent() {
       {/* Fixed Header */}
       <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-black/60 border-b border-white/[0.04]">
         <div className="flex items-center justify-between px-8 py-4 max-w-7xl mx-auto">
-          <div className="flex items-center">
-            <img src="/logo_with_name.png" alt="Sentra" className="h-12 md:h-14" />
+          <div className="flex items-center gap-3 group cursor-pointer" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
+            <img src="/logo_icon.png" alt="Sentra Logo" className="h-10 md:h-12 transition-transform group-hover:scale-105 duration-300" />
+            <span className="text-2xl md:text-[26px] font-semibold tracking-[0.25em] uppercase text-transparent bg-clip-text bg-gradient-to-r from-gray-100 via-white to-gray-400 ml-1 group-hover:from-white group-hover:via-white group-hover:to-white transition-all duration-300">
+              Sentra
+            </span>
           </div>
           <nav className="hidden md:flex gap-8 text-sm font-medium text-gray-400">
             <Link to="/agent" className="hover:text-white transition-colors duration-200">{t('nav.agent')}</Link>

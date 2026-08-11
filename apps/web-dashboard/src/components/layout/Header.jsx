@@ -27,8 +27,11 @@ export default function Header() {
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* Left: Logo + Workspace Switcher */}
         <div className="flex items-center gap-3">
-          <Link to="/" className="flex items-center">
-            <img src="/logo_with_name.png" alt="Sentra" className="h-10" />
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <img src="/logo_icon.png" alt="Sentra Logo" className="h-8 transition-transform group-hover:scale-105 duration-300" />
+            <span className="text-xl font-semibold tracking-[0.25em] uppercase text-transparent bg-clip-text bg-gradient-to-r from-gray-100 via-white to-gray-400 ml-1 group-hover:from-white group-hover:via-white group-hover:to-white transition-all duration-300">
+              Sentra
+            </span>
           </Link>
           <div className="hidden sm:block h-6 w-px bg-white/[0.08]" />
           <div className="hidden sm:block">
