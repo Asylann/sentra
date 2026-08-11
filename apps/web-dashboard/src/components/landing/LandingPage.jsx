@@ -874,7 +874,7 @@ function LandingPageContent() {
         <div className="flex items-center justify-between px-8 py-4 max-w-7xl mx-auto">
           <div className="flex items-center gap-3 group cursor-pointer" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
             <img src="/logo_icon.png" alt="Sentra Logo" className="h-10 md:h-12 transition-transform group-hover:scale-105 duration-300" />
-            <span className="text-2xl md:text-[26px] font-semibold tracking-[0.25em] uppercase text-transparent bg-clip-text bg-gradient-to-r from-gray-100 via-white to-gray-400 ml-1 group-hover:from-white group-hover:via-white group-hover:to-white transition-all duration-300">
+            <span className="text-2xl md:text-[26px] font-semibold tracking-[0.25em] uppercase text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-purple-300 to-indigo-400 ml-1 group-hover:from-violet-300 group-hover:via-purple-200 group-hover:to-indigo-300 transition-all duration-300 drop-shadow-[0_0_15px_rgba(167,139,250,0.15)]">
               Sentra
             </span>
           </div>
