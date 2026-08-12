@@ -1267,7 +1267,7 @@ func (q *Queries) GetUserByLogin(ctx context.Context, login string) (GetUserByLo
 // =============================================================================
 
 const getOrgMemberRole = `-- name: GetOrgMemberRole :one
-SELECT role FROM organization_users WHERE org_id = $1 AND user_id = $2
+SELECT role FROM organization_users WHERE org_id = $1 AND user_id = $2 LIMIT 1
 `
 
 type GetOrgMemberRoleParams struct {
