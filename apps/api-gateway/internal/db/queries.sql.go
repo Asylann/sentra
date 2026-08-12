@@ -826,7 +826,7 @@ SELECT
     ou.role, ou.joined_at
 FROM organization_users ou
 JOIN organizations o ON o.id = ou.org_id
-WHERE ou.user_id = $1
+WHERE ou.user_id = $1 AND o.is_active = true
 ORDER BY ou.joined_at ASC
 `
 
@@ -1260,4 +1260,80 @@ func (q *Queries) GetUserByLogin(ctx context.Context, login string) (GetUserByLo
 		&i.ID, &i.GithubID, &i.Login, &i.Name, &i.Email, &i.AvatarUrl, &i.InstallationID,
 	)
 	return i, err
+}
+
+// =============================================================================
+// Phase B2B v2: Workspace Lifecycle & Role Management
+// =============================================================================
+
+const getOrgMemberRole = `-- name: GetOrgMemberRole :one
+SELECT role FROM organization_users WHERE org_id = $1 AND user_id = $2 LIMIT 1
+`
+
+func (q *Queries) GetOrgMemberRole(ctx context.Context, orgID int64, userID int64) (string, error) {
+	row := q.db.QueryRow(ctx, getOrgMemberRole, orgID, userID)
+	var role string
+	err := row.Scan(&role)
+	return role, err
+}
+
+const updateOrganizationDisplayName = `-- name: UpdateOrganizationDisplayName :exec
+UPDATE organizations SET display_name = $1, updated_at = NOW() WHERE id = $2
+`
+
+type UpdateOrganizationDisplayNameParams struct {
+	DisplayName pgtype.Text `json:"display_name"`
+	ID          int64       `json:"id"`
+}
+
+func (q *Queries) UpdateOrganizationDisplayName(ctx context.Context, arg UpdateOrganizationDisplayNameParams) error {
+	_, err := q.db.Exec(ctx, updateOrganizationDisplayName, arg.DisplayName, arg.ID)
+	return err
+}
+
+const updateOrganizationUserRole = `-- name: UpdateOrganizationUserRole :exec
+UPDATE organization_users SET role = $1 WHERE org_id = $2 AND user_id = $3
+`
+
+type UpdateOrganizationUserRoleParams struct {
+	Role   string `json:"role"`
+	OrgID  int64  `json:"org_id"`
+	UserID int64  `json:"user_id"`
+}
+
+func (q *Queries) UpdateOrganizationUserRole(ctx context.Context, arg UpdateOrganizationUserRoleParams) error {
+	_, err := q.db.Exec(ctx, updateOrganizationUserRole, arg.Role, arg.OrgID, arg.UserID)
+	return err
+}
+
+const removeOrganizationUser = `-- name: RemoveOrganizationUser :exec
+DELETE FROM organization_users WHERE org_id = $1 AND user_id = $2
+`
+
+type RemoveOrganizationUserParams struct {
+	OrgID  int64 `json:"org_id"`
+	UserID int64 `json:"user_id"`
+}
+
+func (q *Queries) RemoveOrganizationUser(ctx context.Context, arg RemoveOrganizationUserParams) error {
+	_, err := q.db.Exec(ctx, removeOrganizationUser, arg.OrgID, arg.UserID)
+	return err
+}
+
+const deleteOrganizationInvite = `-- name: DeleteOrganizationInvite :exec
+DELETE FROM organization_invites WHERE id = $1
+`
+
+func (q *Queries) DeleteOrganizationInvite(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, deleteOrganizationInvite, id)
+	return err
+}
+
+const softDeleteOrganization = `-- name: SoftDeleteOrganization :exec
+UPDATE organizations SET is_active = false, updated_at = NOW() WHERE id = $1
+`
+
+func (q *Queries) SoftDeleteOrganization(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, softDeleteOrganization, id)
+	return err
 }

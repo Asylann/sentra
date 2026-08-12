@@ -110,7 +110,7 @@ func main() {
 	// 9. B2B Multi-Tenancy Handlers
 	onboardingHandler := onboarding.NewHandler(queries)
 	invitesHandler := invites.NewHandler(queries)
-	orgsHandler := organizations.NewHandler(queries)
+	orgsHandler := organizations.NewHandler(queries, dbPool)
 
 	// 10. Settings Handler (raw pgx — bypasses sqlc for schema-evolution flexibility)
 	settingsHandler := settings.NewHandler(dbPool)
@@ -287,9 +287,15 @@ func main() {
 			protected.GET("/users/me/orgs", orgsHandler.GetMyOrganizations)
 			protected.POST("/users/me/orgs/switch", orgsHandler.SwitchOrganization)
 			protected.POST("/invites/:id/respond", invitesHandler.RespondToInvite)
+			protected.DELETE("/invites/:id", invitesHandler.RevokeInvite)
+			protected.POST("/orgs", orgsHandler.CreateWorkspace)
 			protected.GET("/orgs/:id/prs", orgsHandler.GetOrgPRs)
 			protected.GET("/orgs/:id/leaderboard", orgsHandler.GetLeaderboard)
 			protected.GET("/orgs/:id/members", orgsHandler.GetOrgMembers)
+			protected.PUT("/orgs/:id", orgsHandler.RenameWorkspace)
+			protected.DELETE("/orgs/:id", orgsHandler.DeleteWorkspace)
+			protected.PUT("/orgs/:id/members/:user_id/role", orgsHandler.UpdateMemberRole)
+			protected.DELETE("/orgs/:id/members/:user_id", orgsHandler.RemoveMember)
 			protected.POST("/orgs/:id/invites", invitesHandler.CreateInvite)
 			protected.GET("/orgs/:id/invites/pending", invitesHandler.GetOrgPendingInvites)
 

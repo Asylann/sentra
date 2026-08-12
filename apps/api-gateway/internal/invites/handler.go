@@ -1,10 +1,12 @@
 package invites
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	pgx "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/usena/sentra/api-gateway/internal/auth"
 	"github.com/usena/sentra/api-gateway/internal/db"
@@ -235,4 +237,46 @@ func (h *Handler) GetOrgPendingInvites(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": invites})
+}
+
+// RevokeInvite handles DELETE /api/v1/invites/:id
+func (h *Handler) RevokeInvite(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	inviteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid invite ID"})
+		return
+	}
+
+	invite, err := h.Queries.GetInviteByID(c, inviteID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "invite not found"})
+		return
+	}
+
+	role, err := h.Queries.GetOrgMemberRole(c, invite.OrgID, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "not a member of this workspace"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify permissions"})
+		}
+		return
+	}
+	if role != "owner" && role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only admins can revoke invites"})
+		return
+	}
+
+	if err := h.Queries.DeleteOrganizationInvite(c, inviteID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to revoke invite"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "invite revoked"})
 }
