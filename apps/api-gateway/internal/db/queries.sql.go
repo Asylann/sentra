@@ -826,7 +826,7 @@ SELECT
     ou.role, ou.joined_at
 FROM organization_users ou
 JOIN organizations o ON o.id = ou.org_id
-WHERE ou.user_id = $1
+WHERE ou.user_id = $1 AND o.is_active = true
 ORDER BY ou.joined_at ASC
 `
 
@@ -1326,5 +1326,14 @@ DELETE FROM organization_invites WHERE id = $1
 
 func (q *Queries) DeleteOrganizationInvite(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, deleteOrganizationInvite, id)
+	return err
+}
+
+const softDeleteOrganization = `-- name: SoftDeleteOrganization :exec
+UPDATE organizations SET is_active = false, updated_at = NOW() WHERE id = $1
+`
+
+func (q *Queries) SoftDeleteOrganization(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, softDeleteOrganization, id)
 	return err
 }

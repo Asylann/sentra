@@ -1,10 +1,12 @@
 package invites
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	pgx "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/usena/sentra/api-gateway/internal/auth"
 	"github.com/usena/sentra/api-gateway/internal/db"
@@ -258,7 +260,15 @@ func (h *Handler) RevokeInvite(c *gin.Context) {
 	}
 
 	role, err := h.Queries.GetOrgMemberRole(c, invite.OrgID, userID)
-	if err != nil || (role != "owner" && role != "admin") {
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "not a member of this workspace"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify permissions"})
+		}
+		return
+	}
+	if role != "owner" && role != "admin" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "only admins can revoke invites"})
 		return
 	}

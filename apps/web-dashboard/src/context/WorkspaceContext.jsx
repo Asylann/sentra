@@ -16,18 +16,21 @@ export function WorkspaceProvider({ children }) {
         const json = await res.json();
         const orgList = json.data || [];
         setOrgs(orgList);
-        // Switch to first org if current org was deleted or not yet set
-        const stillExists = orgList.some(o => o.id === currentOrg?.id);
-        if (!currentOrg || !stillExists) {
-          setCurrentOrg(orgList.length > 0 ? orgList[0] : null);
-        }
+        // Functional updater reads the latest currentOrg without it being a dep,
+        // preventing a re-fetch loop every time the active workspace changes.
+        setCurrentOrg(prev => {
+          const stillExists = orgList.some(o => o.id === prev?.id);
+          if (!prev || !stillExists) return orgList.length > 0 ? orgList[0] : null;
+          // Refresh the current org entry so renamed display_name is reflected immediately.
+          return orgList.find(o => o.id === prev.id) ?? prev;
+        });
       }
     } catch {
       // silently ignore
     } finally {
       setLoading(false);
     }
-  }, [fetchWithAuth, currentOrg]);
+  }, [fetchWithAuth]); // no currentOrg dep — functional updater avoids stale closure
 
   useEffect(() => {
     if (isAuthenticated) {
