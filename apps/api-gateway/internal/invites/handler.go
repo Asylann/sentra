@@ -259,7 +259,7 @@ func (h *Handler) RevokeInvite(c *gin.Context) {
 		return
 	}
 
-	role, err := h.Queries.GetOrgMemberRole(c, invite.OrgID, userID)
+	role, err := h.Queries.GetOrgMemberRole(c, db.GetOrgMemberRoleParams{OrgID: invite.OrgID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "not a member of this workspace"})

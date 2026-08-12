@@ -290,13 +290,13 @@ ON CONFLICT (org_id, user_id) DO NOTHING;
 UPDATE users SET current_org_id = $1, updated_at = NOW() WHERE id = $2;
 
 -- name: GetUserOrganizations :many
--- Fetches all organizations a user belongs to.
+-- Fetches all active organizations a user belongs to (excludes soft-deleted workspaces).
 SELECT
     o.id, o.login, o.display_name, o.avatar_url, o.workspace_type,
     ou.role, ou.joined_at
 FROM organization_users ou
 JOIN organizations o ON o.id = ou.org_id
-WHERE ou.user_id = $1
+WHERE ou.user_id = $1 AND o.is_active = true
 ORDER BY ou.joined_at ASC;
 
 -- name: GetUserPendingInvites :many
@@ -450,3 +450,27 @@ SELECT id, github_id, login, name, email, avatar_url, installation_id
 FROM users
 WHERE login = $1
 LIMIT 1;
+
+-- name: GetOrgMemberRole :one
+-- Returns the role of a user in an organization, or pgx.ErrNoRows if not a member.
+SELECT role FROM organization_users WHERE org_id = $1 AND user_id = $2;
+
+-- name: UpdateOrganizationDisplayName :exec
+-- Renames a workspace (updates display_name).
+UPDATE organizations SET display_name = $1, updated_at = NOW() WHERE id = $2;
+
+-- name: SoftDeleteOrganization :exec
+-- Marks an organization inactive; preserves repos/PRs/findings for audit.
+UPDATE organizations SET is_active = false, updated_at = NOW() WHERE id = $1;
+
+-- name: UpdateOrganizationUserRole :exec
+-- Changes a member's role within an organization.
+UPDATE organization_users SET role = $1 WHERE org_id = $2 AND user_id = $3;
+
+-- name: RemoveOrganizationUser :exec
+-- Removes a user from an organization.
+DELETE FROM organization_users WHERE org_id = $1 AND user_id = $2;
+
+-- name: DeleteOrganizationInvite :exec
+-- Revokes a pending invitation.
+DELETE FROM organization_invites WHERE id = $1;

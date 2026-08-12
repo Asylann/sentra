@@ -1267,11 +1267,16 @@ func (q *Queries) GetUserByLogin(ctx context.Context, login string) (GetUserByLo
 // =============================================================================
 
 const getOrgMemberRole = `-- name: GetOrgMemberRole :one
-SELECT role FROM organization_users WHERE org_id = $1 AND user_id = $2 LIMIT 1
+SELECT role FROM organization_users WHERE org_id = $1 AND user_id = $2
 `
 
-func (q *Queries) GetOrgMemberRole(ctx context.Context, orgID int64, userID int64) (string, error) {
-	row := q.db.QueryRow(ctx, getOrgMemberRole, orgID, userID)
+type GetOrgMemberRoleParams struct {
+	OrgID  int64 `json:"org_id"`
+	UserID int64 `json:"user_id"`
+}
+
+func (q *Queries) GetOrgMemberRole(ctx context.Context, arg GetOrgMemberRoleParams) (string, error) {
+	row := q.db.QueryRow(ctx, getOrgMemberRole, arg.OrgID, arg.UserID)
 	var role string
 	err := row.Scan(&role)
 	return role, err

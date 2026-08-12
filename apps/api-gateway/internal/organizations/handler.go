@@ -28,7 +28,7 @@ func NewHandler(queries *db.Queries, pool *pgxpool.Pool) *Handler {
 // requireAdmin checks that userID has admin/owner role in orgID.
 // Writes the appropriate error response and returns false on failure.
 func (h *Handler) requireAdmin(c *gin.Context, orgID, userID int64) bool {
-	role, err := h.Queries.GetOrgMemberRole(c, orgID, userID)
+	role, err := h.Queries.GetOrgMemberRole(c, db.GetOrgMemberRoleParams{OrgID: orgID, UserID: userID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "not a member of this workspace"})
