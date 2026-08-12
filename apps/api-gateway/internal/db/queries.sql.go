@@ -966,18 +966,34 @@ func (q *Queries) CreateInvite(ctx context.Context, arg CreateInviteParams) (int
 
 const getOrgPullRequests = `-- name: GetOrgPullRequests :many
 SELECT
-    pr.id, pr.title, pr.pull_number, pr.author_login, pr.state,
-    pr.merged_at, pr.analysis_status, pr.quality_score, pr.merge_blocked,
-    pr.findings_critical, pr.findings_high, pr.findings_medium, pr.findings_low, pr.findings_info,
-    pr.created_at, r.full_name AS repository_full_name
+    pr.id,
+    pr.title,
+    pr.pull_number,
+    pr.author_login,
+    pr.state,
+    pr.merged_at,
+    pr.analysis_status,
+    pr.quality_score,
+    pr.merge_blocked,
+    pr.findings_critical,
+    pr.findings_high,
+    pr.findings_medium,
+    pr.findings_low,
+    pr.findings_info,
+    pr.created_at,
+    r.full_name AS repository_full_name
 FROM pull_requests pr
 JOIN repositories r ON pr.repository_id = r.id
-WHERE pr.organization_id = $1
+WHERE (pr.organization_id = $1
    OR pr.author_login IN (
        SELECT u.login FROM organization_users ou
        JOIN users u ON u.id = ou.user_id
        WHERE ou.org_id = $1
-   )
+   ))
+  AND (
+    NOT EXISTS (SELECT 1 FROM organization_repositories WHERE org_id = $1 AND is_active = true)
+    OR pr.repository_id IN (SELECT repo_id FROM organization_repositories WHERE org_id = $1 AND is_active = true)
+  )
 ORDER BY pr.created_at DESC
 LIMIT $2
 `
@@ -1030,14 +1046,29 @@ func (q *Queries) GetOrgPullRequests(ctx context.Context, arg GetOrgPullRequests
 
 const getOrgPullRequestsByAuthor = `-- name: GetOrgPullRequestsByAuthor :many
 SELECT
-    pr.id, pr.title, pr.pull_number, pr.author_login, pr.state,
-    pr.merged_at, pr.analysis_status, pr.quality_score, pr.merge_blocked,
-    pr.findings_critical, pr.findings_high, pr.findings_medium, pr.findings_low, pr.findings_info,
-    pr.created_at, r.full_name AS repository_full_name
+    pr.id,
+    pr.title,
+    pr.pull_number,
+    pr.author_login,
+    pr.state,
+    pr.merged_at,
+    pr.analysis_status,
+    pr.quality_score,
+    pr.merge_blocked,
+    pr.findings_critical,
+    pr.findings_high,
+    pr.findings_medium,
+    pr.findings_low,
+    pr.findings_info,
+    pr.created_at,
+    r.full_name AS repository_full_name
 FROM pull_requests pr
 JOIN repositories r ON pr.repository_id = r.id
-WHERE pr.organization_id = $1
-  AND pr.author_login = $3
+WHERE (pr.organization_id = $1 AND pr.author_login = $3)
+  AND (
+    NOT EXISTS (SELECT 1 FROM organization_repositories WHERE org_id = $1 AND is_active = true)
+    OR pr.repository_id IN (SELECT repo_id FROM organization_repositories WHERE org_id = $1 AND is_active = true)
+  )
 ORDER BY pr.created_at DESC
 LIMIT $2
 `
@@ -1073,9 +1104,9 @@ func (q *Queries) GetOrgPullRequestsByAuthor(ctx context.Context, arg GetOrgPull
 const getOrgLeaderboard = `-- name: GetOrgLeaderboard :many
 SELECT
     pr.author_login,
-    COUNT(*) AS pr_count,
-    COALESCE(AVG(pr.quality_score), 0)::FLOAT8 AS avg_quality_score,
-    (AVG(pr.quality_score) * LN(COUNT(*) + 1))::FLOAT8 AS performance_index
+    COUNT(pr.id)::int AS pr_count,
+    COALESCE(AVG(pr.quality_score), 0)::float AS avg_quality_score,
+    (COUNT(pr.id) * COALESCE(AVG(pr.quality_score), 50) / 100.0)::float AS performance_index
 FROM pull_requests pr
 WHERE (pr.organization_id = $1
    OR pr.author_login IN (
@@ -1083,6 +1114,10 @@ WHERE (pr.organization_id = $1
        JOIN users u ON u.id = ou.user_id
        WHERE ou.org_id = $1
    ))
+  AND (
+    NOT EXISTS (SELECT 1 FROM organization_repositories WHERE org_id = $1 AND is_active = true)
+    OR pr.repository_id IN (SELECT repo_id FROM organization_repositories WHERE org_id = $1 AND is_active = true)
+  )
   AND pr.analysis_status = 'completed'
   AND pr.quality_score IS NOT NULL
 GROUP BY pr.author_login
@@ -1341,4 +1376,114 @@ UPDATE organizations SET is_active = false, updated_at = NOW() WHERE id = $1
 func (q *Queries) SoftDeleteOrganization(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, softDeleteOrganization, id)
 	return err
+}
+
+// =============================================================================
+// Workspace Repository Management (Repo-Workspace Mapping)
+// =============================================================================
+
+const findOrgByGitHubID = `-- name: FindOrgByGitHubID :one
+SELECT id FROM organizations WHERE github_id = $1 LIMIT 1
+`
+
+func (q *Queries) FindOrgByGitHubID(ctx context.Context, githubID int64) (int64, error) {
+	row := q.db.QueryRow(ctx, findOrgByGitHubID, githubID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const upsertRepoForSync = `-- name: UpsertRepoForSync :one
+INSERT INTO repositories (github_id, organization_id, full_name, is_private, name, default_branch, is_active, analysis_enabled, total_prs_analyzed)
+VALUES ($1, $2, $3, $4, split_part($3, '/', 2), 'main', true, true, 0)
+ON CONFLICT (github_id) DO UPDATE SET full_name = EXCLUDED.full_name, is_private = EXCLUDED.is_private
+RETURNING id
+`
+
+type UpsertRepoForSyncParams struct {
+	GithubID       int64  `json:"github_id"`
+	OrganizationID int64  `json:"organization_id"`
+	FullName       string `json:"full_name"`
+	IsPrivate      bool   `json:"is_private"`
+}
+
+func (q *Queries) UpsertRepoForSync(ctx context.Context, arg UpsertRepoForSyncParams) (int64, error) {
+	row := q.db.QueryRow(ctx, upsertRepoForSync,
+		arg.GithubID,
+		arg.OrganizationID,
+		arg.FullName,
+		arg.IsPrivate,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const linkOrgRepository = `-- name: LinkOrgRepository :exec
+INSERT INTO organization_repositories (org_id, repo_id, is_active)
+VALUES ($1, $2, $3)
+ON CONFLICT (org_id, repo_id) DO UPDATE SET is_active = EXCLUDED.is_active, linked_at = NOW()
+`
+
+type LinkOrgRepositoryParams struct {
+	OrgID    int64 `json:"org_id"`
+	RepoID   int64 `json:"repo_id"`
+	IsActive bool  `json:"is_active"`
+}
+
+func (q *Queries) LinkOrgRepository(ctx context.Context, arg LinkOrgRepositoryParams) error {
+	_, err := q.db.Exec(ctx, linkOrgRepository, arg.OrgID, arg.RepoID, arg.IsActive)
+	return err
+}
+
+const getOrgReposWithLinkStatus = `-- name: GetOrgReposWithLinkStatus :many
+SELECT r.id, r.github_id, r.name, r.full_name, r.is_private, r.is_active,
+       r.avg_quality_score, r.total_prs_analyzed,
+       COALESCE(orr.is_active, false) AS is_linked
+FROM repositories r
+LEFT JOIN organization_repositories orr ON orr.repo_id = r.id AND orr.org_id = $1
+WHERE r.organization_id = $1 OR orr.repo_id IS NOT NULL
+ORDER BY r.full_name ASC
+`
+
+type GetOrgReposWithLinkStatusRow struct {
+	ID               int64         `json:"id"`
+	GithubID         int64         `json:"github_id"`
+	Name             string        `json:"name"`
+	FullName         string        `json:"full_name"`
+	IsPrivate        bool          `json:"is_private"`
+	IsActive         bool          `json:"is_active"`
+	AvgQualityScore  pgtype.Float4 `json:"avg_quality_score"`
+	TotalPrsAnalyzed int32         `json:"total_prs_analyzed"`
+	IsLinked         bool          `json:"is_linked"`
+}
+
+func (q *Queries) GetOrgReposWithLinkStatus(ctx context.Context, orgID int64) ([]GetOrgReposWithLinkStatusRow, error) {
+	rows, err := q.db.Query(ctx, getOrgReposWithLinkStatus, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrgReposWithLinkStatusRow
+	for rows.Next() {
+		var i GetOrgReposWithLinkStatusRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.GithubID,
+			&i.Name,
+			&i.FullName,
+			&i.IsPrivate,
+			&i.IsActive,
+			&i.AvgQualityScore,
+			&i.TotalPrsAnalyzed,
+			&i.IsLinked,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

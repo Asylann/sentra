@@ -207,3 +207,82 @@ func (s *Service) ProcessWebhook(ctx context.Context, deliveryID, eventType, act
 	log.Printf("Webhook processed and outbox event queued via ACID transaction, delivery_id: %v", deliveryID)
 	return nil
 }
+
+// SyncReposFromWebhook handles installation and installation_repositories webhook events
+// by upserting discovered repositories into the DB without queuing Kafka events.
+// This is a best-effort operation — errors are logged but not returned to the caller.
+func (s *Service) SyncReposFromWebhook(ctx context.Context, installationID int64, payload []byte) {
+	var eventData struct {
+		Installation struct {
+			Account struct {
+				ID    int64  `json:"id"`
+				Login string `json:"login"`
+				Type  string `json:"type"`
+			} `json:"account"`
+		} `json:"installation"`
+		// installation event uses "repositories", installation_repositories uses "repositories_added"
+		Repositories []struct {
+			ID       int64  `json:"id"`
+			FullName string `json:"full_name"`
+			Private  bool   `json:"private"`
+		} `json:"repositories"`
+		RepositoriesAdded []struct {
+			ID       int64  `json:"id"`
+			FullName string `json:"full_name"`
+			Private  bool   `json:"private"`
+		} `json:"repositories_added"`
+	}
+	if err := json.Unmarshal(payload, &eventData); err != nil {
+		log.Printf("SyncReposFromWebhook: failed to parse payload: %v", err)
+		return
+	}
+
+	q := db.New(s.dbPool)
+
+	// Upsert the installation owner as a Sentra org (idempotent).
+	account := eventData.Installation.Account
+	if account.ID == 0 {
+		return
+	}
+	orgType := account.Type
+	if orgType == "" {
+		orgType = "Organization"
+	}
+	internalOrgID, err := q.UpsertOrganization(ctx, db.UpsertOrganizationParams{
+		GithubID:       account.ID,
+		Login:          account.Login,
+		Type:           orgType,
+		InstallationID: installationID,
+	})
+	if err != nil {
+		log.Printf("SyncReposFromWebhook: upsert org failed: %v", err)
+		return
+	}
+
+	// Combine both repo lists (installation event vs installation_repositories event).
+	type repoItem struct {
+		ID       int64
+		FullName string
+		Private  bool
+	}
+	var allRepos []repoItem
+	for _, r := range eventData.Repositories {
+		allRepos = append(allRepos, repoItem{r.ID, r.FullName, r.Private})
+	}
+	for _, r := range eventData.RepositoriesAdded {
+		allRepos = append(allRepos, repoItem{r.ID, r.FullName, r.Private})
+	}
+
+	for _, r := range allRepos {
+		if _, err := q.UpsertRepository(ctx, db.UpsertRepositoryParams{
+			GithubID:       r.ID,
+			OrganizationID: internalOrgID,
+			FullName:       r.FullName,
+			IsPrivate:      r.Private,
+		}); err != nil {
+			log.Printf("SyncReposFromWebhook: upsert repo %s failed: %v", r.FullName, err)
+		}
+	}
+
+	log.Printf("SyncReposFromWebhook: synced %d repos for installation %d (org %s)", len(allRepos), installationID, account.Login)
+}
