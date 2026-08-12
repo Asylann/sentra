@@ -236,3 +236,37 @@ func (h *Handler) GetOrgPendingInvites(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"data": invites})
 }
+
+// RevokeInvite handles DELETE /api/v1/invites/:id
+func (h *Handler) RevokeInvite(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	inviteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid invite ID"})
+		return
+	}
+
+	invite, err := h.Queries.GetInviteByID(c, inviteID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "invite not found"})
+		return
+	}
+
+	role, err := h.Queries.GetOrgMemberRole(c, invite.OrgID, userID)
+	if err != nil || (role != "owner" && role != "admin") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only admins can revoke invites"})
+		return
+	}
+
+	if err := h.Queries.DeleteOrganizationInvite(c, inviteID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to revoke invite"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "invite revoked"})
+}

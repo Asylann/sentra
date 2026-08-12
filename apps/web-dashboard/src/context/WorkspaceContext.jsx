@@ -16,8 +16,10 @@ export function WorkspaceProvider({ children }) {
         const json = await res.json();
         const orgList = json.data || [];
         setOrgs(orgList);
-        if (!currentOrg && orgList.length > 0) {
-          setCurrentOrg(orgList[0]);
+        // Switch to first org if current org was deleted or not yet set
+        const stillExists = orgList.some(o => o.id === currentOrg?.id);
+        if (!currentOrg || !stillExists) {
+          setCurrentOrg(orgList.length > 0 ? orgList[0] : null);
         }
       }
     } catch {
