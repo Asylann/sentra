@@ -505,12 +505,13 @@ VALUES ($1, $2, $3)
 ON CONFLICT (org_id, repo_id) DO UPDATE SET is_active = EXCLUDED.is_active, linked_at = NOW();
 
 -- name: GetOrgReposWithLinkStatus :many
--- Returns repositories visible to a workspace (owned by this org via webhooks OR explicitly
--- synced into this workspace). Includes is_linked flag reflecting the user's selection.
+-- Returns only repositories explicitly synced into this workspace (via POST /repos/sync).
+-- Drives from organization_repositories so repos from member PRs (which share the same
+-- organization_id) never bleed into an unrelated workspace's repo list.
 SELECT r.id, r.github_id, r.name, r.full_name, r.is_private, r.is_active,
        r.avg_quality_score, r.total_prs_analyzed,
-       COALESCE(orr.is_active, false) AS is_linked
-FROM repositories r
-LEFT JOIN organization_repositories orr ON orr.repo_id = r.id AND orr.org_id = $1
-WHERE r.organization_id = $1 OR orr.repo_id IS NOT NULL
+       orr.is_active AS is_linked
+FROM organization_repositories orr
+JOIN repositories r ON r.id = orr.repo_id
+WHERE orr.org_id = $1
 ORDER BY r.full_name ASC;
