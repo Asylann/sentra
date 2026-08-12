@@ -24,6 +24,7 @@ import (
 	"github.com/usena/sentra/api-gateway/internal/kafka"
 	"github.com/usena/sentra/api-gateway/internal/onboarding"
 	"github.com/usena/sentra/api-gateway/internal/organizations"
+	"github.com/usena/sentra/api-gateway/internal/repos"
 	"github.com/usena/sentra/api-gateway/internal/settings"
 	"github.com/usena/sentra/api-gateway/internal/users"
 	"github.com/usena/sentra/api-gateway/internal/webhook"
@@ -114,6 +115,7 @@ func main() {
 
 	// 10. Settings Handler (raw pgx — bypasses sqlc for schema-evolution flexibility)
 	settingsHandler := settings.NewHandler(dbPool)
+	reposHandler := repos.NewHandler(queries, dbPool)
 
 	// ---------------------------------------------------------------------------
 	// Start background workers
@@ -302,6 +304,11 @@ func main() {
 			// Settings routes
 			protected.GET("/orgs/:id/settings", settingsHandler.GetOrgSettings)
 			protected.PUT("/orgs/:id/settings", settingsHandler.UpdateOrgSettings)
+
+			// Repository management routes
+			protected.GET("/orgs/:id/repos", reposHandler.GetOrgRepos)
+			protected.POST("/orgs/:id/repos/sync", reposHandler.SyncInstallationRepos)
+			protected.PUT("/orgs/:id/repos/:repo_id", reposHandler.LinkOrgRepo)
 		}
 	}
 
