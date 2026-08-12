@@ -286,11 +286,16 @@ func (h *Handler) RenameWorkspace(c *gin.Context) {
 		return
 	}
 
-	if err := h.Queries.UpdateOrganizationDisplayName(c, db.UpdateOrganizationDisplayNameParams{
-		DisplayName: pgtype.Text{String: name, Valid: true},
-		ID:          orgID,
-	}); err != nil {
+	result, err := h.Pool.Exec(c,
+		`UPDATE organizations SET display_name = $1, updated_at = NOW() WHERE id = $2 AND is_active = true`,
+		name, orgID,
+	)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to rename workspace"})
+		return
+	}
+	if result.RowsAffected() == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "workspace not found or already deleted"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "workspace renamed"})
@@ -316,24 +321,34 @@ func (h *Handler) DeleteWorkspace(c *gin.Context) {
 		return
 	}
 
-	// 1. Clear current_org_id for all members who had this as their active workspace.
-	if _, err := h.Pool.Exec(c,
+	// All three writes are atomic: a partial failure won't leave members locked out
+	// of a workspace that still appears active, or orphaned in a deleted one.
+	tx, err := h.Pool.Begin(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete workspace"})
+		return
+	}
+	defer tx.Rollback(c) //nolint:errcheck
+
+	if _, err := tx.Exec(c,
 		`UPDATE users SET current_org_id = NULL, updated_at = NOW() WHERE current_org_id = $1`, orgID,
 	); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update member sessions"})
 		return
 	}
-
-	// 2. Remove all memberships so the workspace disappears from everyone's list.
-	if _, err := h.Pool.Exec(c,
+	if _, err := tx.Exec(c,
 		`DELETE FROM organization_users WHERE org_id = $1`, orgID,
 	); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove workspace members"})
 		return
 	}
-
-	// 3. Soft-delete the org — data (repos, PRs, findings) is preserved for audit.
-	if err := h.Queries.SoftDeleteOrganization(c, orgID); err != nil {
+	if _, err := tx.Exec(c,
+		`UPDATE organizations SET is_active = false, updated_at = NOW() WHERE id = $1`, orgID,
+	); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete workspace"})
+		return
+	}
+	if err := tx.Commit(c); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete workspace"})
 		return
 	}
@@ -374,8 +389,27 @@ func (h *Handler) UpdateMemberRole(c *gin.Context) {
 		return
 	}
 
+	if targetUserID == requesterID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot change your own role"})
+		return
+	}
+
 	if !h.requireAdmin(c, orgID, requesterID) {
 		return
+	}
+
+	// When demoting someone, ensure at least one admin remains.
+	if req.Role == "member" {
+		currentRole, err := h.Queries.GetOrgMemberRole(c, db.GetOrgMemberRoleParams{OrgID: orgID, UserID: targetUserID})
+		if err == nil && currentRole == "admin" {
+			var adminCount int64
+			if err := h.Pool.QueryRow(c,
+				`SELECT COUNT(*) FROM organization_users WHERE org_id = $1 AND role = 'admin'`, orgID,
+			).Scan(&adminCount); err == nil && adminCount <= 1 {
+				c.JSON(http.StatusConflict, gin.H{"error": "cannot demote the last admin in a workspace"})
+				return
+			}
+		}
 	}
 
 	if err := h.Queries.UpdateOrganizationUserRole(c, db.UpdateOrganizationUserRoleParams{
@@ -411,6 +445,22 @@ func (h *Handler) RemoveMember(c *gin.Context) {
 
 	if !h.requireAdmin(c, orgID, requesterID) {
 		return
+	}
+
+	// Prevent removing the last admin — the workspace would become unmanageable.
+	targetRole, err := h.Queries.GetOrgMemberRole(c, db.GetOrgMemberRoleParams{OrgID: orgID, UserID: targetUserID})
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "member not found in this workspace"})
+		return
+	}
+	if targetRole == "admin" {
+		var adminCount int64
+		if err := h.Pool.QueryRow(c,
+			`SELECT COUNT(*) FROM organization_users WHERE org_id = $1 AND role = 'admin'`, orgID,
+		).Scan(&adminCount); err == nil && adminCount <= 1 {
+			c.JSON(http.StatusConflict, gin.H{"error": "cannot remove the last admin from a workspace"})
+			return
+		}
 	}
 
 	if err := h.Queries.RemoveOrganizationUser(c, db.RemoveOrganizationUserParams{
