@@ -1,21 +1,47 @@
 package organizations
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	pgx "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/usena/sentra/api-gateway/internal/auth"
 	"github.com/usena/sentra/api-gateway/internal/db"
 )
 
 type Handler struct {
 	Queries *db.Queries
+	Pool    *pgxpool.Pool
 }
 
-func NewHandler(queries *db.Queries) *Handler {
-	return &Handler{Queries: queries}
+func NewHandler(queries *db.Queries, pool *pgxpool.Pool) *Handler {
+	return &Handler{Queries: queries, Pool: pool}
+}
+
+// requireAdmin checks that userID has admin/owner role in orgID.
+// Writes the appropriate error response and returns false on failure.
+func (h *Handler) requireAdmin(c *gin.Context, orgID, userID int64) bool {
+	role, err := h.Queries.GetOrgMemberRole(c, db.GetOrgMemberRoleParams{OrgID: orgID, UserID: userID})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "not a member of this workspace"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify permissions"})
+		}
+		return false
+	}
+	if role != "owner" && role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only admins can perform this action"})
+		return false
+	}
+	return true
 }
 
 // GetOrgPRs handles GET /api/v1/orgs/:id/prs
@@ -26,12 +52,10 @@ func (h *Handler) GetOrgPRs(c *gin.Context) {
 		return
 	}
 
-	// QueryArray returns all values for repeated query params: ?author=a&author=b
 	authorLogins := c.QueryArray("author")
 	limit := int32(200)
 
 	if len(authorLogins) > 0 {
-		// Fetch per-author and merge; avoids needing a variadic SQL IN clause
 		seen := make(map[int64]struct{})
 		var merged []db.GetOrgPullRequestsRow
 		for _, login := range authorLogins {
@@ -85,11 +109,9 @@ func (h *Handler) GetLeaderboard(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch leaderboard"})
 		return
 	}
-
 	if leaders == nil {
 		leaders = []db.GetOrgLeaderboardRow{}
 	}
-
 	c.JSON(http.StatusOK, gin.H{"data": leaders})
 }
 
@@ -106,11 +128,9 @@ func (h *Handler) GetMyOrganizations(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch organizations"})
 		return
 	}
-
 	if orgs == nil {
 		orgs = []db.GetUserOrganizationsRow{}
 	}
-
 	c.JSON(http.StatusOK, gin.H{"data": orgs})
 }
 
@@ -130,15 +150,13 @@ func (h *Handler) SwitchOrganization(c *gin.Context) {
 		return
 	}
 
-	switchErr := h.Queries.SetUserCurrentOrg(c, db.SetUserCurrentOrgParams{
+	if err := h.Queries.SetUserCurrentOrg(c, db.SetUserCurrentOrgParams{
 		CurrentOrgID: pgtype.Int8{Int64: req.OrgID, Valid: true},
 		ID:           userID,
-	})
-	if switchErr != nil {
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to switch workspace"})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"org_id": req.OrgID})
 }
 
@@ -155,10 +173,309 @@ func (h *Handler) GetOrgMembers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch members"})
 		return
 	}
-
 	if members == nil {
 		members = []db.GetOrgMembersRow{}
 	}
-
 	c.JSON(http.StatusOK, gin.H{"data": members})
+}
+
+// CreateWorkspace handles POST /api/v1/orgs
+func (h *Handler) CreateWorkspace(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+		return
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if len(name) < 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace name must be at least 2 characters"})
+		return
+	}
+	if len(name) > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace name must be at most 100 characters"})
+		return
+	}
+
+	// Combine user ID + nanosecond timestamp for a login that is unique per user per wall-clock nanosecond.
+	uniqueLogin := fmt.Sprintf("ws-%d-%d", userID, time.Now().UnixNano())
+
+	// Wrap both writes in a transaction: if AddOrganizationUser fails the org is
+	// rolled back instead of persisting as an inaccessible orphan.
+	tx, err := h.Pool.Begin(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create workspace"})
+		return
+	}
+	defer tx.Rollback(c) //nolint:errcheck
+
+	var orgID int64
+	err = tx.QueryRow(c, `
+		WITH id_gen AS (
+			SELECT -(EXTRACT(EPOCH FROM clock_timestamp()) * 1000000)::BIGINT AS v
+		)
+		INSERT INTO organizations
+			(github_id, login, display_name, type, installation_id, plan_tier, is_active, quality_gate_threshold, workspace_type)
+		SELECT v, $1, $2, 'Organization', v - 1, 'free', true, 80, 'company'
+		FROM id_gen
+		RETURNING id
+	`, uniqueLogin, name).Scan(&orgID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create workspace"})
+		return
+	}
+
+	if err := h.Queries.WithTx(tx).AddOrganizationUser(c, db.AddOrganizationUserParams{
+		OrgID:  orgID,
+		UserID: userID,
+		Role:   "admin",
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to configure workspace"})
+		return
+	}
+
+	if err := tx.Commit(c); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create workspace"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"org_id": orgID})
+}
+
+// RenameWorkspace handles PUT /api/v1/orgs/:id
+func (h *Handler) RenameWorkspace(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	orgID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid org ID"})
+		return
+	}
+
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+		return
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if len(name) < 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace name must be at least 2 characters"})
+		return
+	}
+	if len(name) > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace name must be at most 100 characters"})
+		return
+	}
+
+	if !h.requireAdmin(c, orgID, userID) {
+		return
+	}
+
+	result, err := h.Pool.Exec(c,
+		`UPDATE organizations SET display_name = $1, updated_at = NOW() WHERE id = $2 AND is_active = true`,
+		name, orgID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to rename workspace"})
+		return
+	}
+	if result.RowsAffected() == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "workspace not found or already deleted"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "workspace renamed"})
+}
+
+// DeleteWorkspace handles DELETE /api/v1/orgs/:id.
+// Soft-deletes: marks is_active=false, removes all memberships, and clears
+// current_org_id for affected users. PR/repo data is preserved for audit.
+func (h *Handler) DeleteWorkspace(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	orgID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid org ID"})
+		return
+	}
+
+	if !h.requireAdmin(c, orgID, userID) {
+		return
+	}
+
+	// All three writes are atomic: a partial failure won't leave members locked out
+	// of a workspace that still appears active, or orphaned in a deleted one.
+	tx, err := h.Pool.Begin(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete workspace"})
+		return
+	}
+	defer tx.Rollback(c) //nolint:errcheck
+
+	if _, err := tx.Exec(c,
+		`UPDATE users SET current_org_id = NULL, updated_at = NOW() WHERE current_org_id = $1`, orgID,
+	); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update member sessions"})
+		return
+	}
+	if _, err := tx.Exec(c,
+		`DELETE FROM organization_users WHERE org_id = $1`, orgID,
+	); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove workspace members"})
+		return
+	}
+	if _, err := tx.Exec(c,
+		`UPDATE organizations SET is_active = false, updated_at = NOW() WHERE id = $1`, orgID,
+	); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete workspace"})
+		return
+	}
+	if err := tx.Commit(c); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete workspace"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "workspace deleted"})
+}
+
+// UpdateMemberRole handles PUT /api/v1/orgs/:id/members/:user_id/role
+func (h *Handler) UpdateMemberRole(c *gin.Context) {
+	requesterID := auth.GetUserID(c)
+	if requesterID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	orgID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid org ID"})
+		return
+	}
+
+	targetUserID, err := strconv.ParseInt(c.Param("user_id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+
+	var req struct {
+		Role string `json:"role" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "role is required"})
+		return
+	}
+
+	if req.Role != "admin" && req.Role != "member" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "role must be 'admin' or 'member'"})
+		return
+	}
+
+	if targetUserID == requesterID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot change your own role"})
+		return
+	}
+
+	if !h.requireAdmin(c, orgID, requesterID) {
+		return
+	}
+
+	// When demoting someone, ensure at least one admin remains.
+	if req.Role == "member" {
+		currentRole, err := h.Queries.GetOrgMemberRole(c, db.GetOrgMemberRoleParams{OrgID: orgID, UserID: targetUserID})
+		if err == nil && currentRole == "admin" {
+			var adminCount int64
+			if err := h.Pool.QueryRow(c,
+				`SELECT COUNT(*) FROM organization_users WHERE org_id = $1 AND role = 'admin'`, orgID,
+			).Scan(&adminCount); err == nil && adminCount <= 1 {
+				c.JSON(http.StatusConflict, gin.H{"error": "cannot demote the last admin in a workspace"})
+				return
+			}
+		}
+	}
+
+	if err := h.Queries.UpdateOrganizationUserRole(c, db.UpdateOrganizationUserRoleParams{
+		Role:   req.Role,
+		OrgID:  orgID,
+		UserID: targetUserID,
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update role"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "role updated"})
+}
+
+// RemoveMember handles DELETE /api/v1/orgs/:id/members/:user_id
+func (h *Handler) RemoveMember(c *gin.Context) {
+	requesterID := auth.GetUserID(c)
+	if requesterID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	orgID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid org ID"})
+		return
+	}
+
+	targetUserID, err := strconv.ParseInt(c.Param("user_id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+
+	if !h.requireAdmin(c, orgID, requesterID) {
+		return
+	}
+
+	// Prevent removing the last admin — the workspace would become unmanageable.
+	targetRole, err := h.Queries.GetOrgMemberRole(c, db.GetOrgMemberRoleParams{OrgID: orgID, UserID: targetUserID})
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "member not found in this workspace"})
+		return
+	}
+	if targetRole == "admin" {
+		var adminCount int64
+		if err := h.Pool.QueryRow(c,
+			`SELECT COUNT(*) FROM organization_users WHERE org_id = $1 AND role = 'admin'`, orgID,
+		).Scan(&adminCount); err == nil && adminCount <= 1 {
+			c.JSON(http.StatusConflict, gin.H{"error": "cannot remove the last admin from a workspace"})
+			return
+		}
+	}
+
+	if err := h.Queries.RemoveOrganizationUser(c, db.RemoveOrganizationUserParams{
+		OrgID:  orgID,
+		UserID: targetUserID,
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove member"})
+		return
+	}
+
+	// Clear the removed user's active workspace if it was this org.
+	_, _ = h.Pool.Exec(c,
+		`UPDATE users SET current_org_id = NULL, updated_at = NOW() WHERE id = $1 AND current_org_id = $2`,
+		targetUserID, orgID,
+	)
+
+	c.JSON(http.StatusOK, gin.H{"message": "member removed"})
 }

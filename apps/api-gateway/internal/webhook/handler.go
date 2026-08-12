@@ -72,6 +72,18 @@ func (h *Handler) HandleWebhook(c *gin.Context) {
 	switch eventType {
 	case "pull_request":
 		// Continue processing below
+	case "installation", "installation_repositories":
+		// Active repo sync: upsert repos from the installation event into the DB.
+		var tempInstall struct {
+			Installation struct {
+				ID int64 `json:"id"`
+			} `json:"installation"`
+		}
+		json.Unmarshal(payload, &tempInstall)
+		installID := tempInstall.Installation.ID
+		go h.service.SyncReposFromWebhook(c.Request.Context(), installID, payload)
+		c.Status(http.StatusOK)
+		return
 	case "push":
 		log.Printf("Push event acknowledged but skipped (PR-only mode), delivery_id: %v", deliveryID)
 		c.Status(http.StatusOK)

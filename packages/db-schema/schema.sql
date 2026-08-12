@@ -271,6 +271,27 @@ CREATE TABLE organization_invites (
 
 
 -- -----------------------------------------------------------------------------
+-- organization_repositories
+-- Explicit workspace-to-repository mapping. Populated by the active sync
+-- endpoint (GitHub API call) and installation webhook events. Controls which
+-- repos feed a workspace's PRs, leaderboard, and metrics.
+-- is_active = true  → this workspace tracks this repo
+-- is_active = false → repo was synced but user chose not to include it
+-- -----------------------------------------------------------------------------
+CREATE TABLE organization_repositories (
+    org_id      BIGINT  NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    repo_id     BIGINT  NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+    is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+    linked_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (org_id, repo_id)
+);
+CREATE INDEX idx_org_repos_org ON organization_repositories(org_id) WHERE is_active = TRUE;
+
+COMMENT ON TABLE organization_repositories IS
+    'Workspace-to-repository mapping. Admins select which repos feed a workspace''s metrics.';
+
+
+-- -----------------------------------------------------------------------------
 -- team_members
 -- Many-to-many: developers within a team.
 -- Populated by GitHub Team membership webhooks.

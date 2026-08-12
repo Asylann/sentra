@@ -24,6 +24,7 @@ import (
 	"github.com/usena/sentra/api-gateway/internal/kafka"
 	"github.com/usena/sentra/api-gateway/internal/onboarding"
 	"github.com/usena/sentra/api-gateway/internal/organizations"
+	"github.com/usena/sentra/api-gateway/internal/repos"
 	"github.com/usena/sentra/api-gateway/internal/settings"
 	"github.com/usena/sentra/api-gateway/internal/users"
 	"github.com/usena/sentra/api-gateway/internal/webhook"
@@ -110,10 +111,11 @@ func main() {
 	// 9. B2B Multi-Tenancy Handlers
 	onboardingHandler := onboarding.NewHandler(queries)
 	invitesHandler := invites.NewHandler(queries)
-	orgsHandler := organizations.NewHandler(queries)
+	orgsHandler := organizations.NewHandler(queries, dbPool)
 
 	// 10. Settings Handler (raw pgx — bypasses sqlc for schema-evolution flexibility)
 	settingsHandler := settings.NewHandler(dbPool)
+	reposHandler := repos.NewHandler(queries, dbPool)
 
 	// ---------------------------------------------------------------------------
 	// Start background workers
@@ -287,15 +289,26 @@ func main() {
 			protected.GET("/users/me/orgs", orgsHandler.GetMyOrganizations)
 			protected.POST("/users/me/orgs/switch", orgsHandler.SwitchOrganization)
 			protected.POST("/invites/:id/respond", invitesHandler.RespondToInvite)
+			protected.DELETE("/invites/:id", invitesHandler.RevokeInvite)
+			protected.POST("/orgs", orgsHandler.CreateWorkspace)
 			protected.GET("/orgs/:id/prs", orgsHandler.GetOrgPRs)
 			protected.GET("/orgs/:id/leaderboard", orgsHandler.GetLeaderboard)
 			protected.GET("/orgs/:id/members", orgsHandler.GetOrgMembers)
+			protected.PUT("/orgs/:id", orgsHandler.RenameWorkspace)
+			protected.DELETE("/orgs/:id", orgsHandler.DeleteWorkspace)
+			protected.PUT("/orgs/:id/members/:user_id/role", orgsHandler.UpdateMemberRole)
+			protected.DELETE("/orgs/:id/members/:user_id", orgsHandler.RemoveMember)
 			protected.POST("/orgs/:id/invites", invitesHandler.CreateInvite)
 			protected.GET("/orgs/:id/invites/pending", invitesHandler.GetOrgPendingInvites)
 
 			// Settings routes
 			protected.GET("/orgs/:id/settings", settingsHandler.GetOrgSettings)
 			protected.PUT("/orgs/:id/settings", settingsHandler.UpdateOrgSettings)
+
+			// Repository management routes
+			protected.GET("/orgs/:id/repos", reposHandler.GetOrgRepos)
+			protected.POST("/orgs/:id/repos/sync", reposHandler.SyncInstallationRepos)
+			protected.PUT("/orgs/:id/repos/:repo_id", reposHandler.LinkOrgRepo)
 		}
 	}
 

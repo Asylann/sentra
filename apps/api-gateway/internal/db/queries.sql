@@ -290,13 +290,13 @@ ON CONFLICT (org_id, user_id) DO NOTHING;
 UPDATE users SET current_org_id = $1, updated_at = NOW() WHERE id = $2;
 
 -- name: GetUserOrganizations :many
--- Fetches all organizations a user belongs to.
+-- Fetches all active organizations a user belongs to (excludes soft-deleted workspaces).
 SELECT
     o.id, o.login, o.display_name, o.avatar_url, o.workspace_type,
     ou.role, ou.joined_at
 FROM organization_users ou
 JOIN organizations o ON o.id = ou.org_id
-WHERE ou.user_id = $1
+WHERE ou.user_id = $1 AND o.is_active = true
 ORDER BY ou.joined_at ASC;
 
 -- name: GetUserPendingInvites :many
@@ -331,10 +331,7 @@ ON CONFLICT (org_id, target_email) DO UPDATE SET status = 'pending', updated_at 
 RETURNING id;
 
 -- name: GetOrgPullRequests :many
--- Fetches PRs for a specific organization.
--- Includes PRs directly linked to this org AND PRs authored by any org member
--- (covers the case where a PR was stored under a different org_id but was authored
--- by a member of the requested org — e.g., personal repo PRs of team members).
+-- Fetches PRs for a specific organization, respecting workspace repo selection.
 SELECT
     pr.id,
     pr.title,
@@ -354,17 +351,21 @@ SELECT
     r.full_name AS repository_full_name
 FROM pull_requests pr
 JOIN repositories r ON pr.repository_id = r.id
-WHERE pr.organization_id = $1
+WHERE (pr.organization_id = $1
    OR pr.author_login IN (
        SELECT u.login FROM organization_users ou
        JOIN users u ON u.id = ou.user_id
        WHERE ou.org_id = $1
-   )
+   ))
+  AND (
+    NOT EXISTS (SELECT 1 FROM organization_repositories WHERE org_id = $1 AND is_active = true)
+    OR pr.repository_id IN (SELECT repo_id FROM organization_repositories WHERE org_id = $1 AND is_active = true)
+  )
 ORDER BY pr.created_at DESC
 LIMIT $2;
 
 -- name: GetOrgPullRequestsByAuthor :many
--- Fetches PRs for a specific organization filtered by author login.
+-- Fetches PRs for a specific organization filtered by author login, respecting workspace repo selection.
 SELECT
     pr.id,
     pr.title,
@@ -384,13 +385,19 @@ SELECT
     r.full_name AS repository_full_name
 FROM pull_requests pr
 JOIN repositories r ON pr.repository_id = r.id
-WHERE pr.organization_id = $1 AND pr.author_login = $3
+WHERE (pr.organization_id = $1 AND pr.author_login = $3)
+  AND (
+    NOT EXISTS (SELECT 1 FROM organization_repositories WHERE org_id = $1 AND is_active = true)
+    OR pr.repository_id IN (SELECT repo_id FROM organization_repositories WHERE org_id = $1 AND is_active = true)
+  )
 ORDER BY pr.created_at DESC
 LIMIT $2;
 
 -- name: GetOrgLeaderboard :many
 -- Engineering leaderboard: group by developer, count PRs, avg quality, performance index.
--- Includes PRs directly linked to this org OR authored by any org member.
+-- Respects workspace repo selection: if any repos are linked to this workspace,
+-- only PRs from those repos are counted (leaderboard isolation).
+-- Falls back to org-wide / member PRs when no repos are explicitly linked.
 SELECT
     pr.author_login,
     COUNT(pr.id)::int AS pr_count,
@@ -403,6 +410,10 @@ WHERE (pr.organization_id = $1
        JOIN users u ON u.id = ou.user_id
        WHERE ou.org_id = $1
    ))
+  AND (
+    NOT EXISTS (SELECT 1 FROM organization_repositories WHERE org_id = $1 AND is_active = true)
+    OR pr.repository_id IN (SELECT repo_id FROM organization_repositories WHERE org_id = $1 AND is_active = true)
+  )
   AND pr.analysis_status = 'completed'
   AND pr.quality_score IS NOT NULL
 GROUP BY pr.author_login
@@ -450,3 +461,57 @@ SELECT id, github_id, login, name, email, avatar_url, installation_id
 FROM users
 WHERE login = $1
 LIMIT 1;
+
+-- name: GetOrgMemberRole :one
+-- Returns the role of a user in an organization, or pgx.ErrNoRows if not a member.
+SELECT role FROM organization_users WHERE org_id = $1 AND user_id = $2;
+
+-- name: UpdateOrganizationDisplayName :exec
+-- Renames a workspace (updates display_name).
+UPDATE organizations SET display_name = $1, updated_at = NOW() WHERE id = $2;
+
+-- name: SoftDeleteOrganization :exec
+-- Marks an organization inactive; preserves repos/PRs/findings for audit.
+UPDATE organizations SET is_active = false, updated_at = NOW() WHERE id = $1;
+
+-- name: UpdateOrganizationUserRole :exec
+-- Changes a member's role within an organization.
+UPDATE organization_users SET role = $1 WHERE org_id = $2 AND user_id = $3;
+
+-- name: RemoveOrganizationUser :exec
+-- Removes a user from an organization.
+DELETE FROM organization_users WHERE org_id = $1 AND user_id = $2;
+
+-- name: DeleteOrganizationInvite :exec
+-- Revokes a pending invitation.
+DELETE FROM organization_invites WHERE id = $1;
+
+-- name: FindOrgByGitHubID :one
+-- Finds an organization row by its GitHub numeric ID (used during repo sync to map repo owners).
+SELECT id FROM organizations WHERE github_id = $1 LIMIT 1;
+
+-- name: UpsertRepoForSync :one
+-- Upserts a repository discovered during active GitHub App sync.
+-- ON CONFLICT preserves organization_id to avoid reassigning ownership.
+INSERT INTO repositories (github_id, organization_id, full_name, is_private, name, default_branch, is_active, analysis_enabled, total_prs_analyzed)
+VALUES ($1, $2, $3, $4, split_part($3, '/', 2), 'main', true, true, 0)
+ON CONFLICT (github_id) DO UPDATE SET full_name = EXCLUDED.full_name, is_private = EXCLUDED.is_private
+RETURNING id;
+
+-- name: LinkOrgRepository :exec
+-- Links or unlinks a repository to a workspace. ON CONFLICT updates is_active in place.
+INSERT INTO organization_repositories (org_id, repo_id, is_active)
+VALUES ($1, $2, $3)
+ON CONFLICT (org_id, repo_id) DO UPDATE SET is_active = EXCLUDED.is_active, linked_at = NOW();
+
+-- name: GetOrgReposWithLinkStatus :many
+-- Returns only repositories explicitly synced into this workspace (via POST /repos/sync).
+-- Drives from organization_repositories so repos from member PRs (which share the same
+-- organization_id) never bleed into an unrelated workspace's repo list.
+SELECT r.id, r.github_id, r.name, r.full_name, r.is_private, r.is_active,
+       r.avg_quality_score, r.total_prs_analyzed,
+       orr.is_active AS is_linked
+FROM organization_repositories orr
+JOIN repositories r ON r.id = orr.repo_id
+WHERE orr.org_id = $1
+ORDER BY r.full_name ASC;

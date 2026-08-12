@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, UserPlus, Mail, GitBranch, X, Check, Shield, Zap,
   Building2, Code2, Sparkles, Crown,
-  Clock, AlertCircle, Loader2,
+  Clock, AlertCircle, Loader2, ChevronDown, UserMinus, Ban,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkspace } from '../../context/WorkspaceContext';
@@ -34,10 +34,7 @@ function PulsingLine({ x1, y1, x2, y2, color, delay }) {
         transition={{ duration: 1, delay, ease: 'easeOut' }}
       />
       <motion.circle r={3} fill={color} opacity={0.8}
-        animate={{
-          cx: [`${x1}%`, `${x2}%`],
-          cy: [`${y1}%`, `${y2}%`],
-        }}
+        animate={{ cx: [`${x1}%`, `${x2}%`], cy: [`${y1}%`, `${y2}%`] }}
         transition={{ duration: 2.5, repeat: Infinity, ease: 'linear', delay }}
       />
     </svg>
@@ -64,7 +61,6 @@ function CollaborationBanner() {
       <FloatingOrb x={50} y={80} size={120} color="rgba(245,158,11,0.2)" delay={3} />
 
       <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center">
-        {/* Left text */}
         <div className="flex-1 min-w-0">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -83,9 +79,7 @@ function CollaborationBanner() {
             className="text-2xl md:text-3xl font-bold text-white leading-snug mb-3"
           >
             Build great software{' '}
-            <span className="bg-gradient-to-r from-indigo-400 to-emerald-400 bg-clip-text text-transparent">
-              together
-            </span>
+            <span className="bg-gradient-to-r from-indigo-400 to-emerald-400 bg-clip-text text-transparent">together</span>
           </motion.h2>
 
           <motion.p
@@ -112,11 +106,7 @@ function CollaborationBanner() {
               <span
                 key={label}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border"
-                style={{
-                  background: color + '15',
-                  borderColor: color + '30',
-                  color: color,
-                }}
+                style={{ background: color + '15', borderColor: color + '30', color }}
               >
                 <Icon size={11} />
                 {label}
@@ -125,14 +115,12 @@ function CollaborationBanner() {
           </motion.div>
         </div>
 
-        {/* Right — animated node diagram */}
         <div className="relative flex-shrink-0 w-64 h-48 hidden md:block">
           <PulsingLine x1={50} y1={50} x2={20} y2={15} color="#818cf8" delay={0.8} />
           <PulsingLine x1={50} y1={50} x2={80} y2={15} color="#34d399" delay={1.1} />
           <PulsingLine x1={50} y1={50} x2={15} y2={80} color="#f59e0b" delay={1.4} />
           <PulsingLine x1={50} y1={50} x2={85} y2={80} color="#f472b6" delay={1.7} />
 
-          {/* Central Sentra node */}
           <motion.div
             initial={{ opacity: 0, scale: 0 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -148,12 +136,9 @@ function CollaborationBanner() {
             >
               <Sparkles size={20} style={{ color: '#818cf8' }} />
             </motion.div>
-            <span className="text-[10px] font-semibold tracking-wide" style={{ color: '#818cf8cc' }}>
-              Sentra AI
-            </span>
+            <span className="text-[10px] font-semibold tracking-wide" style={{ color: '#818cf8cc' }}>Sentra AI</span>
           </motion.div>
 
-          {/* Dev nodes */}
           {devProfiles.map((dev, i) => {
             const positions = [[20, 15], [80, 15], [15, 80], [85, 80]];
             return (
@@ -164,12 +149,9 @@ function CollaborationBanner() {
                 transition={{ delay: 0.9 + i * 0.15, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
                 className="absolute size-10 rounded-full border-2 flex items-center justify-center text-xs font-bold"
                 style={{
-                  left: `${positions[i][0]}%`,
-                  top: `${positions[i][1]}%`,
+                  left: `${positions[i][0]}%`, top: `${positions[i][1]}%`,
                   transform: 'translate(-50%, -50%)',
-                  borderColor: dev.color + '50',
-                  background: dev.color + '20',
-                  color: dev.color,
+                  borderColor: dev.color + '50', background: dev.color + '20', color: dev.color,
                 }}
               >
                 {dev.initials}
@@ -194,9 +176,7 @@ function InviteModal({ orgId, onClose, onSuccess }) {
   const [sent, setSent] = useState(false);
   const emailRef = useRef(null);
 
-  useEffect(() => {
-    emailRef.current?.focus();
-  }, []);
+  useEffect(() => { emailRef.current?.focus(); }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -213,10 +193,7 @@ function InviteModal({ orgId, onClose, onSuccess }) {
         throw new Error(json.error || `Error ${res.status}`);
       }
       setSent(true);
-      setTimeout(() => {
-        onSuccess?.();
-        onClose();
-      }, 1800);
+      setTimeout(() => { onSuccess?.(); onClose(); }, 1800);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -232,7 +209,6 @@ function InviteModal({ orgId, onClose, onSuccess }) {
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
     >
       <motion.div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-
       <motion.div
         initial={{ opacity: 0, scale: 0.93, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -241,7 +217,6 @@ function InviteModal({ orgId, onClose, onSuccess }) {
         className="relative z-10 w-full max-w-md bg-[#111] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
       >
         <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-emerald-500" />
-
         <div className="p-6">
           <div className="flex items-start justify-between mb-6">
             <div>
@@ -253,10 +228,7 @@ function InviteModal({ orgId, onClose, onSuccess }) {
               </div>
               <p className="text-xs text-zinc-500">They'll receive an invitation they can accept or decline.</p>
             </div>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.05] transition-colors"
-            >
+            <button onClick={onClose} className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.05] transition-colors">
               <X size={16} />
             </button>
           </div>
@@ -292,30 +264,27 @@ function InviteModal({ orgId, onClose, onSuccess }) {
                       ref={emailRef}
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={e => setEmail(e.target.value)}
                       placeholder="developer@company.com"
                       className="w-full pl-9 pr-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/60 focus:bg-white/[0.06] transition-all"
                     />
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                    GitHub username{' '}
-                    <span className="text-zinc-600 font-normal">(required if no email)</span>
+                    GitHub username <span className="text-zinc-600 font-normal">(required if no email)</span>
                   </label>
                   <div className="relative">
                     <GitBranch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
                     <input
                       type="text"
                       value={githubLogin}
-                      onChange={(e) => setGithubLogin(e.target.value)}
+                      onChange={e => setGithubLogin(e.target.value)}
                       placeholder="octocat"
                       className="w-full pl-9 pr-4 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/60 focus:bg-white/[0.06] transition-all"
                     />
                   </div>
                 </div>
-
                 <AnimatePresence>
                   {error && (
                     <motion.div
@@ -329,7 +298,6 @@ function InviteModal({ orgId, onClose, onSuccess }) {
                     </motion.div>
                   )}
                 </AnimatePresence>
-
                 <div className="flex gap-2 pt-1">
                   <button
                     type="button"
@@ -357,15 +325,105 @@ function InviteModal({ orgId, onClose, onSuccess }) {
 }
 
 /* ─────────────────────────────────────────────
-   MEMBER CARD
+   ROLE SELECTOR DROPDOWN
 ───────────────────────────────────────────── */
-function MemberCard({ member, index }) {
+function RoleSelector({ currentRole, memberId, orgId, onRoleChanged, fetchWithAuth }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const ROLES = [
+    { value: 'admin', label: 'Admin' },
+    { value: 'member', label: 'Member' },
+  ];
+
+  const handleSelect = async (role) => {
+    if (role === currentRole) { setOpen(false); return; }
+    setLoading(true);
+    setOpen(false);
+    try {
+      const res = await fetchWithAuth(`/api/v1/orgs/${orgId}/members/${memberId}/role`, {
+        method: 'PUT',
+        body: JSON.stringify({ role }),
+      });
+      if (res.ok) onRoleChanged?.();
+    } catch { /* silent */ } finally {
+      setLoading(false);
+    }
+  };
+
   const ROLE_STYLES = {
     owner: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
     admin: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
     member: 'text-zinc-400 bg-white/[0.04] border-white/[0.08]',
   };
-  const roleStyle = ROLE_STYLES[member.role] || ROLE_STYLES.member;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        disabled={loading}
+        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border capitalize cursor-pointer hover:opacity-80 transition-opacity ${ROLE_STYLES[currentRole] || ROLE_STYLES.member}`}
+      >
+        {currentRole === 'owner' && <Crown size={10} />}
+        {loading ? <Loader2 size={10} className="animate-spin" /> : currentRole}
+        <ChevronDown size={10} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -4 }}
+            transition={{ duration: 0.12 }}
+            className="absolute right-0 top-8 z-30 w-28 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden"
+          >
+            {ROLES.map(r => (
+              <button
+                key={r.value}
+                onClick={() => handleSelect(r.value)}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors ${r.value === currentRole ? 'text-white bg-white/[0.06]' : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'}`}
+              >
+                {r.value === currentRole && <Check size={10} className="text-indigo-400" />}
+                <span className={r.value === currentRole ? 'ml-0' : 'ml-3.5'}>{r.label}</span>
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   MEMBER CARD
+───────────────────────────────────────────── */
+function MemberCard({ member, index, canManage, isCurrentUser, orgId, onChanged, fetchWithAuth }) {
+  const [removing, setRemoving] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  const handleRemove = async () => {
+    setRemoving(true);
+    try {
+      const res = await fetchWithAuth(`/api/v1/orgs/${orgId}/members/${member.user_id}`, { method: 'DELETE' });
+      if (res.ok) onChanged?.();
+    } catch { /* silent */ } finally {
+      setRemoving(false);
+      setConfirmRemove(false);
+    }
+  };
+
+  const ROLE_STYLES = {
+    owner: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+    admin: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
+    member: 'text-zinc-400 bg-white/[0.04] border-white/[0.08]',
+  };
 
   const joinedDate = member.joined_at
     ? new Date(member.joined_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -401,15 +459,61 @@ function MemberCard({ member, index }) {
         <p className="text-xs text-zinc-500 truncate">@{member.login}</p>
       </div>
 
-      <span className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border capitalize ${roleStyle}`}>
-        {member.role === 'owner' && <Crown size={10} />}
-        {member.role}
-      </span>
+      {/* Role badge: interactive dropdown for admins managing non-self members */}
+      {canManage && !isCurrentUser ? (
+        <RoleSelector
+          currentRole={member.role}
+          memberId={member.user_id}
+          orgId={orgId}
+          onRoleChanged={onChanged}
+          fetchWithAuth={fetchWithAuth}
+        />
+      ) : (
+        <span className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border capitalize ${ROLE_STYLES[member.role] || ROLE_STYLES.member}`}>
+          {member.role === 'owner' && <Crown size={10} />}
+          {member.role}
+        </span>
+      )}
 
       {joinedDate && (
         <div className="hidden md:flex items-center gap-1 text-xs text-zinc-600">
           <Clock size={11} />
           {joinedDate}
+        </div>
+      )}
+
+      {/* Remove button — only for admins managing non-self members */}
+      {canManage && !isCurrentUser && (
+        <div className="shrink-0">
+          {!confirmRemove ? (
+            <button
+              onClick={() => setConfirmRemove(true)}
+              className="p-1.5 rounded-lg text-zinc-700 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+              title="Remove member"
+            >
+              <UserMinus size={14} />
+            </button>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex items-center gap-1"
+            >
+              <button
+                onClick={() => setConfirmRemove(false)}
+                className="px-2 py-1 rounded text-xs text-zinc-500 hover:text-white transition-colors"
+              >
+                No
+              </button>
+              <button
+                onClick={handleRemove}
+                disabled={removing}
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-rose-500/15 text-rose-400 hover:bg-rose-500/25 transition-colors disabled:opacity-50"
+              >
+                {removing ? <Loader2 size={10} className="animate-spin" /> : 'Remove?'}
+              </button>
+            </motion.div>
+          )}
         </div>
       )}
     </motion.div>
@@ -419,7 +523,19 @@ function MemberCard({ member, index }) {
 /* ─────────────────────────────────────────────
    PENDING INVITE ROW
 ───────────────────────────────────────────── */
-function PendingInviteRow({ invite, index }) {
+function PendingInviteRow({ invite, index, canManage, onRevoked, fetchWithAuth }) {
+  const [revoking, setRevoking] = useState(false);
+
+  const handleRevoke = async () => {
+    setRevoking(true);
+    try {
+      const res = await fetchWithAuth(`/api/v1/invites/${invite.id}`, { method: 'DELETE' });
+      if (res.ok) onRevoked?.();
+    } catch { /* silent */ } finally {
+      setRevoking(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, x: -10 }}
@@ -437,6 +553,16 @@ function PendingInviteRow({ invite, index }) {
       <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
         pending
       </span>
+      {canManage && (
+        <button
+          onClick={handleRevoke}
+          disabled={revoking}
+          className="flex items-center gap-1 px-2 py-1 rounded text-xs text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 transition-colors disabled:opacity-50 shrink-0"
+          title="Revoke invite"
+        >
+          {revoking ? <Loader2 size={11} className="animate-spin" /> : <><Ban size={11} />Revoke</>}
+        </button>
+      )}
     </motion.div>
   );
 }
@@ -445,7 +571,7 @@ function PendingInviteRow({ invite, index }) {
    MAIN TeamView
 ───────────────────────────────────────────── */
 export default function TeamView() {
-  const { fetchWithAuth } = useAuth();
+  const { fetchWithAuth, user } = useAuth();
   const { currentOrg, isCompanyWorkspace } = useWorkspace();
 
   const [members, setMembers] = useState([]);
@@ -454,6 +580,8 @@ export default function TeamView() {
   const [loadingInvites, setLoadingInvites] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [search, setSearch] = useState('');
+
+  const canManage = currentOrg?.role === 'owner' || currentOrg?.role === 'admin';
 
   const fetchMembers = useCallback(async () => {
     if (!currentOrg?.id) return;
@@ -489,7 +617,7 @@ export default function TeamView() {
   }, [fetchMembers, fetchPendingInvites]);
 
   const filtered = members.filter(
-    (m) => !search ||
+    m => !search ||
       m.login?.toLowerCase().includes(search.toLowerCase()) ||
       m.name?.toLowerCase().includes(search.toLowerCase()),
   );
@@ -553,7 +681,7 @@ export default function TeamView() {
         transition={{ delay: 0.15 }}
         type="text"
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
+        onChange={e => setSearch(e.target.value)}
         placeholder="Search members by name or GitHub username…"
         className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.07] rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/40 focus:bg-white/[0.05] transition-all"
       />
@@ -594,7 +722,16 @@ export default function TeamView() {
             </div>
           ) : (
             filtered.map((member, idx) => (
-              <MemberCard key={member.user_id || member.login || idx} member={member} index={idx} />
+              <MemberCard
+                key={member.user_id || member.login || idx}
+                member={member}
+                index={idx}
+                canManage={canManage}
+                isCurrentUser={member.user_id === user?.id}
+                orgId={currentOrg?.id}
+                onChanged={() => { fetchMembers(); }}
+                fetchWithAuth={fetchWithAuth}
+              />
             ))
           )}
         </div>
@@ -628,7 +765,14 @@ export default function TeamView() {
             </div>
           ) : (
             pendingInvites.map((invite, idx) => (
-              <PendingInviteRow key={invite.id} invite={invite} index={idx} />
+              <PendingInviteRow
+                key={invite.id}
+                invite={invite}
+                index={idx}
+                canManage={canManage}
+                onRevoked={() => fetchPendingInvites()}
+                fetchWithAuth={fetchWithAuth}
+              />
             ))
           )}
         </div>
