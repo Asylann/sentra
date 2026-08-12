@@ -200,12 +200,25 @@ func (h *Handler) CreateWorkspace(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace name must be at least 2 characters"})
 		return
 	}
+	if len(name) > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace name must be at most 100 characters"})
+		return
+	}
 
 	// Combine user ID + nanosecond timestamp for a login that is unique per user per wall-clock nanosecond.
 	uniqueLogin := fmt.Sprintf("ws-%d-%d", userID, time.Now().UnixNano())
 
+	// Wrap both writes in a transaction: if AddOrganizationUser fails the org is
+	// rolled back instead of persisting as an inaccessible orphan.
+	tx, err := h.Pool.Begin(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create workspace"})
+		return
+	}
+	defer tx.Rollback(c) //nolint:errcheck
+
 	var orgID int64
-	err := h.Pool.QueryRow(c, `
+	err = tx.QueryRow(c, `
 		WITH id_gen AS (
 			SELECT -(EXTRACT(EPOCH FROM clock_timestamp()) * 1000000)::BIGINT AS v
 		)
@@ -220,12 +233,17 @@ func (h *Handler) CreateWorkspace(c *gin.Context) {
 		return
 	}
 
-	if err := h.Queries.AddOrganizationUser(c, db.AddOrganizationUserParams{
+	if err := h.Queries.WithTx(tx).AddOrganizationUser(c, db.AddOrganizationUserParams{
 		OrgID:  orgID,
 		UserID: userID,
 		Role:   "admin",
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to configure workspace"})
+		return
+	}
+
+	if err := tx.Commit(c); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create workspace"})
 		return
 	}
 
@@ -257,6 +275,10 @@ func (h *Handler) RenameWorkspace(c *gin.Context) {
 	name := strings.TrimSpace(req.Name)
 	if len(name) < 2 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace name must be at least 2 characters"})
+		return
+	}
+	if len(name) > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace name must be at most 100 characters"})
 		return
 	}
 

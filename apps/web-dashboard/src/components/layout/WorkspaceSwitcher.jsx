@@ -10,9 +10,9 @@ import { useAuth } from '../../context/AuthContext';
 /* ─────────────────────────────────────────────
    CREATE WORKSPACE MODAL
 ───────────────────────────────────────────── */
-function CreateWorkspaceModal({ onClose, onSuccess }) {
+function CreateWorkspaceModal({ onClose }) {
   const { fetchWithAuth } = useAuth();
-  const { refreshOrgs } = useWorkspace();
+  const { refreshOrgs, switchOrg } = useWorkspace();
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -27,6 +27,10 @@ function CreateWorkspaceModal({ onClose, onSuccess }) {
       setError('Name must be at least 2 characters.');
       return;
     }
+    if (trimmed.length > 100) {
+      setError('Name must be at most 100 characters.');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -36,8 +40,10 @@ function CreateWorkspaceModal({ onClose, onSuccess }) {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || `Error ${res.status}`);
-      await refreshOrgs();
-      onSuccess?.();
+      // Refresh the org list (passing the new org's id auto-switches to it),
+      // then persist the switch in the backend. Only one refresh call happens here.
+      await refreshOrgs(json.org_id);
+      await switchOrg(json.org_id);
       onClose();
     } catch (err) {
       setError(err.message);
@@ -84,6 +90,7 @@ function CreateWorkspaceModal({ onClose, onSuccess }) {
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="Acme Engineering"
+                maxLength={100}
                 className="w-full px-3 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/60 focus:bg-white/[0.06] transition-all"
               />
             </div>
@@ -112,7 +119,7 @@ function CreateWorkspaceModal({ onClose, onSuccess }) {
               </button>
               <button
                 type="submit"
-                disabled={loading || name.trim().length < 2}
+                disabled={loading || name.trim().length < 2 || name.trim().length > 100}
                 className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium bg-indigo-500 hover:bg-indigo-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? <Loader2 size={13} className="animate-spin" /> : 'Create'}
@@ -385,7 +392,6 @@ export default function WorkspaceSwitcher() {
         {showCreate && (
           <CreateWorkspaceModal
             onClose={() => setShowCreate(false)}
-            onSuccess={() => refreshOrgs()}
           />
         )}
         {settingsOrg && (

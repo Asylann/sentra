@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 
 const WorkspaceContext = createContext(null);
@@ -8,20 +8,25 @@ export function WorkspaceProvider({ children }) {
   const [orgs, setOrgs] = useState([]);
   const [currentOrg, setCurrentOrg] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Keep a ref so switchOrg always reads the latest list without being in its dep array.
+  const orgsRef = useRef([]);
 
-  const fetchOrgs = useCallback(async () => {
+  const fetchOrgs = useCallback(async (preferOrgId = null) => {
     try {
       const res = await fetchWithAuth('/api/v1/users/me/orgs');
       if (res.ok) {
         const json = await res.json();
         const orgList = json.data || [];
+        orgsRef.current = orgList;
         setOrgs(orgList);
-        // Functional updater reads the latest currentOrg without it being a dep,
-        // preventing a re-fetch loop every time the active workspace changes.
         setCurrentOrg(prev => {
+          // If a specific org is preferred (e.g. just created), switch to it.
+          if (preferOrgId) {
+            const preferred = orgList.find(o => o.id === preferOrgId);
+            if (preferred) return preferred;
+          }
           const stillExists = orgList.some(o => o.id === prev?.id);
           if (!prev || !stillExists) return orgList.length > 0 ? orgList[0] : null;
-          // Refresh the current org entry so renamed display_name is reflected immediately.
           return orgList.find(o => o.id === prev.id) ?? prev;
         });
       }
@@ -30,7 +35,7 @@ export function WorkspaceProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [fetchWithAuth]); // no currentOrg dep — functional updater avoids stale closure
+  }, [fetchWithAuth]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -45,13 +50,15 @@ export function WorkspaceProvider({ children }) {
         body: JSON.stringify({ org_id: orgId }),
       });
       if (res.ok) {
-        const target = orgs.find(o => o.id === orgId);
+        // Read from ref so this callback never goes stale when orgs list updates
+        // (e.g. right after a refreshOrgs() call that added a newly created workspace).
+        const target = orgsRef.current.find(o => o.id === orgId);
         if (target) setCurrentOrg(target);
       }
     } catch {
       // silently ignore
     }
-  }, [fetchWithAuth, orgs]);
+  }, [fetchWithAuth]); // no `orgs` dep — ref provides fresh data without rebuilding
 
   const isCompanyWorkspace = currentOrg?.workspace_type === 'company';
 
