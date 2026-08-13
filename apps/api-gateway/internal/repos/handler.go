@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/usena/sentra/api-gateway/internal/auth"
 	"github.com/usena/sentra/api-gateway/internal/db"
@@ -139,7 +140,7 @@ func (h *Handler) SyncInstallationRepos(c *gin.Context) {
 		// GitHub fetch failures are non-fatal: we still return what's in the DB.
 	}
 
-	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, db.GetOrgReposWithLinkStatusParams{OrgID: orgID, SyncedByUserID: userID})
+	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, db.GetOrgReposWithLinkStatusParams{OrgID: orgID, SyncedByUserID: pgtype.Int8{Int64: userID, Valid: true}})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch repositories"})
 		return
@@ -165,7 +166,7 @@ func (h *Handler) GetOrgRepos(c *gin.Context) {
 		return
 	}
 
-	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, db.GetOrgReposWithLinkStatusParams{OrgID: orgID, SyncedByUserID: userID})
+	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, db.GetOrgReposWithLinkStatusParams{OrgID: orgID, SyncedByUserID: pgtype.Int8{Int64: userID, Valid: true}})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch repositories"})
 		return

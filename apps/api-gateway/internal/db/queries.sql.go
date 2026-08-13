@@ -1448,8 +1448,8 @@ ORDER BY r.full_name ASC
 `
 
 type GetOrgReposWithLinkStatusParams struct {
-	OrgID          int64 `json:"org_id"`
-	SyncedByUserID int64 `json:"synced_by_user_id"`
+	OrgID          int64       `json:"org_id"`
+	SyncedByUserID pgtype.Int8 `json:"synced_by_user_id"`
 }
 
 type GetOrgReposWithLinkStatusRow struct {
