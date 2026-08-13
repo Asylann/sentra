@@ -125,19 +125,21 @@ func (h *Handler) SyncInstallationRepos(c *gin.Context) {
 					continue
 				}
 
-				// Register this repo in the workspace without overriding an existing choice.
+				// Register this repo in the workspace. Record who synced it (first writer wins)
+				// so visibility filtering can distinguish "my repos" from "other members' repos".
 				h.Pool.Exec(c, //nolint:errcheck
-					`INSERT INTO organization_repositories (org_id, repo_id, is_active)
-					 VALUES ($1, $2, false)
-					 ON CONFLICT (org_id, repo_id) DO NOTHING`,
-					orgID, repoID,
+					`INSERT INTO organization_repositories (org_id, repo_id, is_active, synced_by_user_id)
+					 VALUES ($1, $2, false, $3)
+					 ON CONFLICT (org_id, repo_id) DO UPDATE
+					 SET synced_by_user_id = COALESCE(organization_repositories.synced_by_user_id, EXCLUDED.synced_by_user_id)`,
+					orgID, repoID, userID,
 				)
 			}
 		}
 		// GitHub fetch failures are non-fatal: we still return what's in the DB.
 	}
 
-	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, orgID)
+	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, db.GetOrgReposWithLinkStatusParams{OrgID: orgID, UserID: userID})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch repositories"})
 		return
@@ -151,13 +153,19 @@ func (h *Handler) SyncInstallationRepos(c *gin.Context) {
 // GetOrgRepos handles GET /api/v1/orgs/:id/repos
 // Returns all repositories visible to the workspace with their is_linked status.
 func (h *Handler) GetOrgRepos(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	orgID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid org ID"})
 		return
 	}
 
-	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, orgID)
+	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, db.GetOrgReposWithLinkStatusParams{OrgID: orgID, UserID: userID})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch repositories"})
 		return

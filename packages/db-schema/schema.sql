@@ -279,10 +279,11 @@ CREATE TABLE organization_invites (
 -- is_active = false → repo was synced but user chose not to include it
 -- -----------------------------------------------------------------------------
 CREATE TABLE organization_repositories (
-    org_id      BIGINT  NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    repo_id     BIGINT  NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
-    is_active   BOOLEAN NOT NULL DEFAULT TRUE,
-    linked_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    org_id             BIGINT  NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    repo_id            BIGINT  NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+    is_active          BOOLEAN NOT NULL DEFAULT TRUE,
+    linked_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    synced_by_user_id  BIGINT REFERENCES users(id) ON DELETE SET NULL,
     PRIMARY KEY (org_id, repo_id)
 );
 CREATE INDEX idx_org_repos_org ON organization_repositories(org_id) WHERE is_active = TRUE;

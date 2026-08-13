@@ -1443,8 +1443,14 @@ SELECT r.id, r.github_id, r.name, r.full_name, r.is_private, r.is_active,
 FROM organization_repositories orr
 JOIN repositories r ON r.id = orr.repo_id
 WHERE orr.org_id = $1
+  AND (orr.synced_by_user_id = $2 OR orr.is_active = true)
 ORDER BY r.full_name ASC
 `
+
+type GetOrgReposWithLinkStatusParams struct {
+	OrgID  int64 `json:"org_id"`
+	UserID int64 `json:"user_id"`
+}
 
 type GetOrgReposWithLinkStatusRow struct {
 	ID               int64         `json:"id"`
@@ -1458,8 +1464,8 @@ type GetOrgReposWithLinkStatusRow struct {
 	IsLinked         bool          `json:"is_linked"`
 }
 
-func (q *Queries) GetOrgReposWithLinkStatus(ctx context.Context, orgID int64) ([]GetOrgReposWithLinkStatusRow, error) {
-	rows, err := q.db.Query(ctx, getOrgReposWithLinkStatus, orgID)
+func (q *Queries) GetOrgReposWithLinkStatus(ctx context.Context, arg GetOrgReposWithLinkStatusParams) ([]GetOrgReposWithLinkStatusRow, error) {
+	rows, err := q.db.Query(ctx, getOrgReposWithLinkStatus, arg.OrgID, arg.UserID)
 	if err != nil {
 		return nil, err
 	}

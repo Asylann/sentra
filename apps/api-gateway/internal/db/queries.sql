@@ -505,13 +505,15 @@ VALUES ($1, $2, $3)
 ON CONFLICT (org_id, repo_id) DO UPDATE SET is_active = EXCLUDED.is_active, linked_at = NOW();
 
 -- name: GetOrgReposWithLinkStatus :many
--- Returns only repositories explicitly synced into this workspace (via POST /repos/sync).
--- Drives from organization_repositories so repos from member PRs (which share the same
--- organization_id) never bleed into an unrelated workspace's repo list.
+-- Returns repos visible to a specific user in a workspace:
+--   1. Repos this user personally synced (synced_by_user_id = $2) — their own GitHub repos
+--   2. Repos linked to the workspace by anyone (is_active = true) — shared/visible to all members
+-- This prevents an admin from seeing unlinked repos that a member synced but hasn't shared yet.
 SELECT r.id, r.github_id, r.name, r.full_name, r.is_private, r.is_active,
        r.avg_quality_score, r.total_prs_analyzed,
        orr.is_active AS is_linked
 FROM organization_repositories orr
 JOIN repositories r ON r.id = orr.repo_id
 WHERE orr.org_id = $1
+  AND (orr.synced_by_user_id = $2 OR orr.is_active = true)
 ORDER BY r.full_name ASC;
