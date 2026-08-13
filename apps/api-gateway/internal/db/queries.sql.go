@@ -1448,8 +1448,8 @@ ORDER BY r.full_name ASC
 `
 
 type GetOrgReposWithLinkStatusParams struct {
-	OrgID  int64 `json:"org_id"`
-	UserID int64 `json:"user_id"`
+	OrgID          int64 `json:"org_id"`
+	SyncedByUserID int64 `json:"synced_by_user_id"`
 }
 
 type GetOrgReposWithLinkStatusRow struct {
@@ -1465,7 +1465,7 @@ type GetOrgReposWithLinkStatusRow struct {
 }
 
 func (q *Queries) GetOrgReposWithLinkStatus(ctx context.Context, arg GetOrgReposWithLinkStatusParams) ([]GetOrgReposWithLinkStatusRow, error) {
-	rows, err := q.db.Query(ctx, getOrgReposWithLinkStatus, arg.OrgID, arg.UserID)
+	rows, err := q.db.Query(ctx, getOrgReposWithLinkStatus, arg.OrgID, arg.SyncedByUserID)
 	if err != nil {
 		return nil, err
 	}

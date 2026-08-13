@@ -139,7 +139,7 @@ func (h *Handler) SyncInstallationRepos(c *gin.Context) {
 		// GitHub fetch failures are non-fatal: we still return what's in the DB.
 	}
 
-	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, db.GetOrgReposWithLinkStatusParams{OrgID: orgID, UserID: userID})
+	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, db.GetOrgReposWithLinkStatusParams{OrgID: orgID, SyncedByUserID: userID})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch repositories"})
 		return
@@ -165,7 +165,7 @@ func (h *Handler) GetOrgRepos(c *gin.Context) {
 		return
 	}
 
-	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, db.GetOrgReposWithLinkStatusParams{OrgID: orgID, UserID: userID})
+	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, db.GetOrgReposWithLinkStatusParams{OrgID: orgID, SyncedByUserID: userID})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch repositories"})
 		return
