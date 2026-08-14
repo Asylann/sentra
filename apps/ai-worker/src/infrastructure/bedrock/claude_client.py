@@ -11,6 +11,7 @@ Prompt Caching (SYSTEM_AND_TOOLS strategy):
   Dynamic zone (uncached): git diff appended last (unique per call).
 """
 import logging
+import re
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any
@@ -55,6 +56,19 @@ REVIEW_TOOL_SCHEMA = {
         "json": {
             "type": "object",
             "properties": {
+                "thinking_process": {
+                    "type": "string",
+                    "description": (
+                        "MANDATORY SCRATCHPAD — populate this BEFORE the findings array. "
+                        "Step 1: Describe each changed file's role. "
+                        "Step 2: For every potential issue, trace the concrete impact path: "
+                        "  exact trigger, what fails, who is affected. "
+                        "Step 3: Only assign HIGH or CRITICAL if the impact is direct, realistic, "
+                        "  and results in a crash, data loss, or exploitable security breach. "
+                        "Step 4: Demote speculative or edge-case findings to MEDIUM or LOW. "
+                        "Minimum 3 sentences of genuine reasoning required."
+                    ),
+                },
                 "findings": {
                     "type": "array",
                     "items": {
@@ -120,7 +134,7 @@ REVIEW_TOOL_SCHEMA = {
                     }
                 }
             },
-            "required": ["findings"]
+            "required": ["thinking_process", "findings"]
         }
     }
 }
@@ -151,7 +165,60 @@ BASE_SYSTEM_PROMPT = (
     "appears in the diff exactly as you quote it. Do NOT fabricate or hallucinate line content "
     "that does not exist in the provided <git_diff>.\n"
     "5. Do NOT emit duplicate findings for the same line with different wording.\n"
+    "\nSEVERITY NEGATIVE CONSTRAINTS — read these before assigning any severity:\n"
+    "- NEVER classify style issues, naming conventions, missing docstrings, or minor refactors as HIGH or CRITICAL.\n"
+    "- Do NOT use HIGH unless the bug actively crashes the application, causes severe data loss, or introduces a confirmed security vulnerability with a direct, realistic exploit path.\n"
+    "- If a finding requires an unlikely precondition chain or is described with words like \"could\", \"might\", or \"theoretically\", classify it MEDIUM or LOW.\n"
+    "- Code that works correctly but is not idiomatic is NEVER HIGH or CRITICAL.\n"
+    "- A missing error-check for a function that cannot realistically fail in context is LOW or INFO.\n"
 )
+
+
+# ── Semantic pruning ──────────────────────────────────────────────────────────
+_LOW_VALUE_SUFFIXES = (
+    "go.sum", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+    "pipfile.lock", "poetry.lock", "composer.lock", "gemfile.lock",
+    "cargo.lock", ".min.js", ".min.css", ".pb.go", ".pb.gw.go",
+    ".svg", ".woff", ".woff2", ".ttf", ".eot",
+)
+_LOW_VALUE_FRAGMENTS = (
+    "_generated.", ".generated.", "generated_", "vendor/", "dist/",
+    "node_modules/", "/__generated__/", "/.gen/",
+)
+_logger = logging.getLogger(__name__)
+
+
+def _is_low_value_file(chunk: str) -> bool:
+    lower = chunk.lower()
+    return (
+        any(lower.endswith(s) for s in _LOW_VALUE_SUFFIXES)
+        or any(f in lower for f in _LOW_VALUE_FRAGMENTS)
+    )
+
+
+def _semantic_prune_diff(diff: str, max_chars: int = 60000) -> str:
+    if len(diff) <= max_chars:
+        return diff
+    chunks = re.split(r"(?=^diff --git )", diff, flags=re.MULTILINE)
+    if chunks and not chunks[0].strip():
+        chunks = chunks[1:]
+    high_value, low_value = [], []
+    for c in chunks:
+        (low_value if _is_low_value_file(c) else high_value).append(c)
+    if low_value:
+        _logger.info("Semantic pruning: dropped %d low-value file(s).", len(low_value))
+    result = high_value[:]
+    dropped = 0
+    while result and len("".join(result)) > max_chars:
+        result.pop()
+        dropped += 1
+    if dropped:
+        _logger.warning(
+            "Semantic pruning: dropped %d tail file(s) to fit %d-char limit. "
+            "All included files are syntactically complete.",
+            dropped, max_chars,
+        )
+    return "".join(result) if result else diff[:max_chars]
 
 
 class BedrockClaudeClient:
@@ -189,7 +256,7 @@ class BedrockClaudeClient:
         if system_context:
             system_prompt += f"\n\n{system_context}"
 
-        truncated_diff = diff_content[:60000]
+        truncated_diff = _semantic_prune_diff(diff_content)
 
         user_message = (
             f"Review the following pull request diff.\n"

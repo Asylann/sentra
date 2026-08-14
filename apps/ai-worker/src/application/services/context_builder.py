@@ -39,22 +39,10 @@ class RAGContextBuilder:
     @classmethod
     def build_developer_profile_xml(cls, metrics: Dict[str, Any]) -> str:
         """
-        Wraps developer historical tendencies in strict <developer_profile> tags.
+        Formerly wrapped developer historical tendencies in <developer_profile> tags.
+        Removed to eliminate developer-profile bias in severity classification.
         """
-        if not metrics:
-            return "<developer_profile>\nNo historical data available.\n</developer_profile>"
-
-        weaknesses = metrics.get("historical_weaknesses", [])
-        weaknesses_str = ", ".join(weaknesses) if weaknesses else "None identified yet"
-        prs = metrics.get("total_prs_analyzed", 0)
-
-        return (
-            "<developer_profile>\n"
-            f"Developer Login: {metrics.get('login', 'unknown')}\n"
-            f"Total PRs Analyzed: {prs}\n"
-            f"Identified Weaknesses (Pay Close Attention): {weaknesses_str}\n"
-            "</developer_profile>"
-        )
+        return ""
 
     @classmethod
     def build_analysis_focus_xml(cls, analysis_focus: List[str]) -> str:
@@ -101,7 +89,6 @@ class RAGContextBuilder:
             analysis_focus:    Categories the org wants the AI to focus on (from Settings UI).
         """
         org_xml = cls.build_organization_rules_xml(policies)
-        dev_xml = cls.build_developer_profile_xml(developer_metrics)
         focus_xml = cls.build_analysis_focus_xml(analysis_focus or [])
 
         severity_guide = (
@@ -154,11 +141,18 @@ class RAGContextBuilder:
             "line(s). An identical suggestion is invalid and will be rejected.\n"
             "- If you cannot identify the exact new-file line number for a finding, leave "
             "suggestion_code as empty string and describe the fix in suggested_fix text instead.\n"
-            "</line_targeting_rules>\n"
+            "</line_targeting_rules>\n\n"
+            "<negative_severity_constraints>\n"
+            "NEGATIVE CONSTRAINT: NEVER classify style issues, naming conventions, missing docstrings, or minor refactors as HIGH or CRITICAL. These are always MEDIUM, LOW, or INFO.\n"
+            "NEGATIVE CONSTRAINT: Do NOT use HIGH or CRITICAL unless the finding actively crashes the application, causes severe data loss, introduces a confirmed security vulnerability, or causes an unambiguous logic failure with a concrete impact path. Theoretical or \"could potentially\" issues do not qualify.\n"
+            "NEGATIVE CONSTRAINT: If a finding is purely theoretical, requires an unlikely chain of preconditions, or is an edge-case with no realistic trigger in this codebase, it MUST be classified MEDIUM or LOW.\n"
+            "NEGATIVE CONSTRAINT: Code that works correctly but could be written more idiomatically is NEVER HIGH or CRITICAL. Prefer not filing it at all unless it is genuinely confusing.\n"
+            "NEGATIVE CONSTRAINT: A missing error check for a function that cannot reasonably fail in context is LOW or INFO, not HIGH.\n"
+            "</negative_severity_constraints>\n"
             "</severity_definitions>"
         )
 
-        parts = [severity_guide, org_xml, dev_xml]
+        parts = [severity_guide, org_xml]
         if focus_xml:
             parts.append(focus_xml)
 

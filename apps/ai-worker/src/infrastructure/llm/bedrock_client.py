@@ -12,6 +12,79 @@ from src.domain.entities.sentra_config import SentraConfig
 
 logger = logging.getLogger(__name__)
 
+# ── Semantic pruning helper ───────────────────────────────────────────────────
+_LOW_VALUE_SUFFIXES = (
+    "go.sum", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+    "pipfile.lock", "poetry.lock", "composer.lock", "gemfile.lock",
+    "cargo.lock", ".min.js", ".min.css", ".pb.go", ".pb.gw.go",
+    ".svg", ".woff", ".woff2", ".ttf", ".eot",
+)
+_LOW_VALUE_FRAGMENTS = (
+    "_generated.", ".generated.", "generated_", "vendor/", "dist/",
+    "node_modules/", "/__generated__/", "/.gen/",
+)
+
+def _is_low_value_file(diff_header: str) -> bool:
+    """Return True if this per-file diff chunk is noise (lock files, generated, minified)."""
+    lower = diff_header.lower()
+    return (
+        any(lower.endswith(s) for s in _LOW_VALUE_SUFFIXES)
+        or any(f in lower for f in _LOW_VALUE_FRAGMENTS)
+    )
+
+def _semantic_prune_diff(diff: str, max_chars: int = 60000) -> str:
+    """
+    Prune a unified diff to fit within max_chars while keeping every included
+    file syntactically complete (never mid-function truncation).
+
+    Strategy:
+      1. If already small enough, return as-is.
+      2. Split into per-file chunks; discard low-value files (lock files, generated, SVGs).
+      3. If still too large, drop files from the end (smallest semantic value) until it fits.
+      4. Log what was dropped so engineers can audit the decision.
+    """
+    import re
+    if len(diff) <= max_chars:
+        return diff
+
+    # Split into per-file chunks — each starts with "diff --git"
+    chunks = re.split(r"(?=^diff --git )", diff, flags=re.MULTILINE)
+    if chunks and not chunks[0].strip():
+        chunks = chunks[1:]
+
+    high_value, low_value = [], []
+    for chunk in chunks:
+        (low_value if _is_low_value_file(chunk) else high_value).append(chunk)
+
+    if low_value:
+        logger.info(
+            "Semantic pruning: removed %d low-value file(s) (%s, …) from diff payload.",
+            len(low_value),
+            ", ".join(
+                re.search(r"diff --git a/(.+?) b/", c).group(1)
+                for c in low_value[:3]
+                if re.search(r"diff --git a/(.+?) b/", c)
+            ),
+        )
+
+    result_chunks = high_value[:]
+    dropped_overflow = 0
+    while result_chunks and len("".join(result_chunks)) > max_chars:
+        result_chunks.pop()
+        dropped_overflow += 1
+
+    if dropped_overflow:
+        logger.warning(
+            "Semantic pruning: payload still exceeded %d chars after low-value removal; "
+            "dropped %d additional file(s) from the tail. "
+            "All included files are syntactically complete — no mid-function truncation.",
+            max_chars,
+            dropped_overflow,
+        )
+
+    return "".join(result_chunks) if result_chunks else diff[:max_chars]
+
+
 class BedrockConfig(BaseSettings):
     """Loaded via pydantic-settings from .env for AWS credentials"""
     aws_access_key_id: str = __import__("os").environ.get("AWS_BEDROCK_ACCESS_KEY", "")
@@ -164,6 +237,20 @@ class BedrockClaudeClient:
                     "json": {
                         "type": "object",
                         "properties": {
+                            "thinking_process": {
+                                "type": "string",
+                                "description": (
+                                    "MANDATORY SCRATCHPAD — fill this BEFORE populating 'findings'. "
+                                    "Step 1: List every changed file and its purpose. "
+                                    "Step 2: For each potential issue, write the concrete impact path: "
+                                    "  what exact input triggers it, what breaks, and who is affected. "
+                                    "Step 3: Apply the severity ladder: only assign HIGH/CRITICAL if the impact "
+                                    "  path is direct, realistic, and causes a crash, data loss, or security breach. "
+                                    "Step 4: Demote any finding whose impact path contains the words 'could', "
+                                    "  'might', 'theoretically', or 'if an attacker' without a realistic trigger to MEDIUM or LOW. "
+                                    "Write at least 3 sentences of genuine reasoning here — do not leave it empty or use a placeholder."
+                                ),
+                            },
                             "findings": {
                                 "type": "array",
                                 "items": {
@@ -223,7 +310,7 @@ class BedrockClaudeClient:
                                 }
                             }
                         },
-                        "required": ["findings"]
+                        "required": ["thinking_process", "findings"]
                     }
                 }
             }
@@ -245,14 +332,7 @@ class BedrockClaudeClient:
                     bool(sentra_config.custom_prompt),
                 )
 
-        # Safeguard against massive diffs exceeding LLM input token limits
-        # Approx 60,000 characters is safely within typical 16k-32k token limits
-        max_chars = 60000
-        if len(pruned_diff) > max_chars:
-            logger.warning(
-                "Diff size (%d chars) exceeds %d, truncating.", len(pruned_diff), max_chars
-            )
-            pruned_diff = pruned_diff[:max_chars] + "\n\n... [DIFF TRUNCATED DUE TO SIZE LIMIT] ..."
+        pruned_diff = _semantic_prune_diff(pruned_diff)
 
         user_message = {
             "role": "user",
