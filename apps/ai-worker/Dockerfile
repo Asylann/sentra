@@ -52,5 +52,5 @@ COPY alembic /app/alembic
 # Expose port
 EXPOSE 8001
 
-# Command to run the FastAPI application
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8001"]
+# Run migrations before starting the FastAPI application
+CMD ["bash", "-c", "alembic -c alembic/alembic.ini upgrade head && uvicorn src.main:app --host 0.0.0.0 --port 8001"]

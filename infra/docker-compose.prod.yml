@@ -443,8 +443,6 @@ services:
       - POSTGRES_URL=postgresql://sentra:sentra_dev_password_change_in_prod@sentra-postgres:5432/sentra
       - KAFKA_BROKERS=sentra-kafka:9092
       - REDIS_URL=redis://sentra-redis:6379/0
-    command: >
-      bash -c "alembic -c alembic/alembic.ini upgrade head && uvicorn src.main:app --host 0.0.0.0 --port 8001"
     networks:
       - shared-web-network
 
