@@ -301,8 +301,8 @@ COMMENT ON TABLE organization_repositories IS
 -- Visibility rule:
 --   A user sees a repo if they appear in this table for it (their own repos,
 --   whether linked or not) OR if the repo is currently linked (is_active=true
---   in organization_repositories) so linked repos are visible to all workspace
---   members.
+--   in organization_repositories) AND they are an admin. So linked repos from
+--   team members are visible to admins, but not to other regular members.
 -- -----------------------------------------------------------------------------
 CREATE TABLE organization_repository_syncs (
     org_id  BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,

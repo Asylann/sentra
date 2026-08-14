@@ -510,11 +510,11 @@ ON CONFLICT (org_id, repo_id) DO UPDATE SET is_active = EXCLUDED.is_active, link
 --     (a) They personally synced it via the GitHub App installation endpoint
 --         (recorded in organization_repository_syncs). This covers their own
 --         repos regardless of whether they are currently linked or unlinked.
---     (b) The repo is currently linked (is_active = true) to this workspace —
---         linked repos are visible to every workspace member so anyone can
---         manage them.
---   This prevents an admin from seeing a member's private/unlinked repos while
---   ensuring every user always has visibility into their own repos.
+--     (b) The repo is currently linked (is_active = true) to this workspace AND
+--         the user is an admin. Linked repos from team members are only visible
+--         to admins, not other regular members.
+--   This prevents a member from seeing another member's linked repos, but allows
+--   admins to see and manage all linked repos.
 SELECT r.id, r.github_id, r.name, r.full_name, r.is_private, r.is_active,
        r.avg_quality_score, r.total_prs_analyzed,
        orr.is_active AS is_linked
@@ -526,7 +526,13 @@ WHERE orr.org_id = $1
       SELECT 1 FROM organization_repository_syncs s
       WHERE s.org_id = orr.org_id AND s.repo_id = orr.repo_id AND s.user_id = $2
     )
-    OR orr.is_active = true
+    OR (
+      orr.is_active = true AND
+      EXISTS (
+        SELECT 1 FROM organization_users ou
+        WHERE ou.org_id = $1 AND ou.user_id = $2 AND ou.role = 'admin'
+      )
+    )
   )
 ORDER BY r.full_name ASC;
 

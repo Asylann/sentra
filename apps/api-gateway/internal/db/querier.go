@@ -6,14 +6,59 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
+	// Adds a user to an organization with a given role.
+	AddOrganizationUser(ctx context.Context, arg AddOrganizationUserParams) error
+	// Creates a company workspace org for a team.
+	CreateCompanyOrganization(ctx context.Context, arg CreateCompanyOrganizationParams) (int64, error)
+	// Creates a new organization invite.
+	CreateInvite(ctx context.Context, arg CreateInviteParams) (int64, error)
+	// =============================================================================
+	// B2B Multi-Tenancy Queries (Phase: B2B SaaS Pivot)
+	// =============================================================================
+	// Creates a personal workspace org for an individual user.
+	CreatePersonalOrganization(ctx context.Context, arg CreatePersonalOrganizationParams) (int64, error)
+	// Revokes a pending invitation.
+	DeleteOrganizationInvite(ctx context.Context, id int64) error
+	// Finds an organization row by its GitHub numeric ID (used during repo sync to map repo owners).
+	FindOrgByGitHubID(ctx context.Context, githubID int64) (int64, error)
 	// Fetches a batch of pending events for the Kafka Relay Worker and locks them.
 	// Uses SKIP LOCKED to allow multiple worker goroutines/pods to poll concurrently
 	// without blocking each other or double-processing messages.
 	// Research1 §2.3: Transactional Outbox pattern.
 	GetAndLockPendingOutboxEvents(ctx context.Context, limit int32) ([]GetAndLockPendingOutboxEventsRow, error)
+	// Fetches an invite by its ID.
+	GetInviteByID(ctx context.Context, id int64) (GetInviteByIDRow, error)
+	// Engineering leaderboard: group by developer, count PRs, avg quality, performance index.
+	// Respects workspace repo selection: if any repos are linked to this workspace,
+	// only PRs from those repos are counted (leaderboard isolation).
+	// Falls back to org-wide / member PRs when no repos are explicitly linked.
+	GetOrgLeaderboard(ctx context.Context, organizationID int64) ([]GetOrgLeaderboardRow, error)
+	// Returns the role of a user in an organization, or pgx.ErrNoRows if not a member.
+	GetOrgMemberRole(ctx context.Context, arg GetOrgMemberRoleParams) (string, error)
+	// Fetches all members of an organization.
+	GetOrgMembers(ctx context.Context, orgID int64) ([]GetOrgMembersRow, error)
+	// Fetches all pending invites for an organization (used in the TeamView pending panel).
+	GetOrgPendingInvites(ctx context.Context, orgID int64) ([]GetOrgPendingInvitesRow, error)
+	// Fetches PRs for a specific organization, respecting workspace repo selection.
+	GetOrgPullRequests(ctx context.Context, arg GetOrgPullRequestsParams) ([]GetOrgPullRequestsRow, error)
+	// Fetches PRs for a specific organization filtered by author login, respecting workspace repo selection.
+	GetOrgPullRequestsByAuthor(ctx context.Context, arg GetOrgPullRequestsByAuthorParams) ([]GetOrgPullRequestsByAuthorRow, error)
+	// Visibility contract:
+	//   A user sees a repo in the workspace repo list if EITHER:
+	//     (a) They personally synced it via the GitHub App installation endpoint
+	//         (recorded in organization_repository_syncs). This covers their own
+	//         repos regardless of whether they are currently linked or unlinked.
+	//     (b) The repo is currently linked (is_active = true) to this workspace AND
+	//         the user is an admin. Linked repos from team members are only visible
+	//         to admins, not other regular members.
+	//   This prevents a member from seeing another member's linked repos, but allows
+	//   admins to see and manage all linked repos.
+	GetOrgReposWithLinkStatus(ctx context.Context, arg GetOrgReposWithLinkStatusParams) ([]GetOrgReposWithLinkStatusRow, error)
 	// Computes aggregate metrics from the rollup table.
 	GetOrganizationMetrics(ctx context.Context) (GetOrganizationMetricsRow, error)
 	// Fetches a single Pull Request by its ID.
@@ -28,6 +73,16 @@ type Querier interface {
 	GetUserByGitHubID(ctx context.Context, githubID int64) (User, error)
 	// Fetches a user by their internal Sentra DB ID (used after JWT validation).
 	GetUserByID(ctx context.Context, id int64) (User, error)
+	// Fetches a user by their GitHub login.
+	GetUserByLogin(ctx context.Context, login string) (GetUserByLoginRow, error)
+	// Get user's current org id.
+	GetUserCurrentOrg(ctx context.Context, id int64) (pgtype.Int8, error)
+	// Fetches all active organizations a user belongs to (excludes soft-deleted workspaces).
+	GetUserOrganizations(ctx context.Context, userID int64) ([]GetUserOrganizationsRow, error)
+	// Fetches pending invites for a user by their email.
+	GetUserPendingInvites(ctx context.Context, targetEmail string) ([]GetUserPendingInvitesRow, error)
+	// Fetches pending invites by GitHub login (fallback when user email is not stored).
+	GetUserPendingInvitesByLogin(ctx context.Context, targetGithubLogin pgtype.Text) ([]GetUserPendingInvitesByLoginRow, error)
 	// Inserts a pending message for Kafka delivery.
 	// Part 2 of the Transactional Outbox. Must be run in the same db.Tx as InsertWebhookPayload.
 	InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventParams) (OutboxEvent, error)
@@ -40,17 +95,37 @@ type Querier interface {
 	// Inserts the raw GitHub webhook payload into the immutable audit log.
 	// Part 1 of the Transactional Outbox.
 	InsertWebhookPayload(ctx context.Context, arg InsertWebhookPayloadParams) (WebhookPayload, error)
+	// Links or unlinks a repository to a workspace. ON CONFLICT updates is_active in place.
+	LinkOrgRepository(ctx context.Context, arg LinkOrgRepositoryParams) error
 	// Increments retry count and sets error details. If retries exceed limit, status becomes 'failed'.
 	MarkOutboxEventFailed(ctx context.Context, arg MarkOutboxEventFailedParams) error
 	// Marks an outbox event as successfully published to Kafka.
 	MarkOutboxEventPublished(ctx context.Context, id int64) error
+	// Records that a user has synced a specific repo into a workspace via the
+	// GitHub App installation endpoint. Idempotent — safe to call on every sync.
+	RegisterRepoSync(ctx context.Context, arg RegisterRepoSyncParams) error
+	// Removes a user from an organization.
+	RemoveOrganizationUser(ctx context.Context, arg RemoveOrganizationUserParams) error
+	// Sets the user's active workspace.
+	SetUserCurrentOrg(ctx context.Context, arg SetUserCurrentOrgParams) error
 	// Updates the installation_id for a user when they install the GitHub App.
 	SetUserInstallationID(ctx context.Context, arg SetUserInstallationIDParams) error
+	// Marks an organization inactive; preserves repos/PRs/findings for audit.
+	SoftDeleteOrganization(ctx context.Context, id int64) error
+	// Accepts or declines an invite.
+	UpdateInviteStatus(ctx context.Context, arg UpdateInviteStatusParams) error
+	// Renames a workspace (updates display_name).
+	UpdateOrganizationDisplayName(ctx context.Context, arg UpdateOrganizationDisplayNameParams) error
+	// Changes a member's role within an organization.
+	UpdateOrganizationUserRole(ctx context.Context, arg UpdateOrganizationUserRoleParams) error
 	// =============================================================================
 	// Dashboard Queries (Phase 12)
 	// =============================================================================
 	// Ensures the organization exists before inserting dependent records.
 	UpsertOrganization(ctx context.Context, arg UpsertOrganizationParams) (int64, error)
+	// Upserts a repository discovered during active GitHub App sync.
+	// ON CONFLICT preserves organization_id to avoid reassigning ownership.
+	UpsertRepoForSync(ctx context.Context, arg UpsertRepoForSyncParams) (int64, error)
 	// Ensures the repository exists before inserting dependent records.
 	UpsertRepository(ctx context.Context, arg UpsertRepositoryParams) (int64, error)
 	// =============================================================================

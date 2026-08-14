@@ -136,11 +136,23 @@ type Organization struct {
 	InstallationID int64  `json:"installation_id"`
 	PlanTier       string `json:"plan_tier"`
 	IsActive       bool   `json:"is_active"`
+	WorkspaceType  string `json:"workspace_type"`
 	// Organization-wide default Quality Score threshold (0-100). PRs below this score receive conclusion=failure from the Check Runs API, blocking the Merge button. Overridable per repository in repository_policies.
 	QualityGateThreshold int32              `json:"quality_gate_threshold"`
-	WorkspaceType        string             `json:"workspace_type"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Pending invitations to join an organization workspace.
+type OrganizationInvite struct {
+	ID                int64              `json:"id"`
+	OrgID             int64              `json:"org_id"`
+	InviterID         int64              `json:"inviter_id"`
+	TargetEmail       string             `json:"target_email"`
+	TargetGithubLogin pgtype.Text        `json:"target_github_login"`
+	Status            string             `json:"status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
 // M2M: developers belonging to an organization.
@@ -149,6 +161,22 @@ type OrganizationMember struct {
 	DeveloperID    int64              `json:"developer_id"`
 	Role           string             `json:"role"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+// Workspace-to-repository mapping. Admins select which repos feed a workspace's metrics.
+type OrganizationRepository struct {
+	OrgID          int64              `json:"org_id"`
+	RepoID         int64              `json:"repo_id"`
+	IsActive       bool               `json:"is_active"`
+	LinkedAt       pgtype.Timestamptz `json:"linked_at"`
+	SyncedByUserID pgtype.Int8        `json:"synced_by_user_id"`
+}
+
+// Which users have synced (and therefore "own") a repo entry in a workspace. Many-to-many.
+type OrganizationRepositorySync struct {
+	OrgID  int64 `json:"org_id"`
+	RepoID int64 `json:"repo_id"`
+	UserID int64 `json:"user_id"`
 }
 
 // Active subscription for each organization.
@@ -166,6 +194,14 @@ type OrganizationSubscription struct {
 	StripeCustomerID      pgtype.Text        `json:"stripe_customer_id"`
 	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+}
+
+// M2M: dashboard users belonging to an organization (B2B multi-tenancy).
+type OrganizationUser struct {
+	OrgID    int64              `json:"org_id"`
+	UserID   int64              `json:"user_id"`
+	Role     string             `json:"role"`
+	JoinedAt pgtype.Timestamptz `json:"joined_at"`
 }
 
 // Transactional Outbox for at-least-once Kafka delivery.
@@ -407,28 +443,4 @@ type WebhookPayload struct {
 	SignatureValid bool               `json:"signature_valid"`
 	ReceivedAt     pgtype.Timestamptz `json:"received_at"`
 	ProcessedAt    pgtype.Timestamptz `json:"processed_at"`
-}
-
-// =============================================================================
-// B2B Multi-Tenancy Models (Phase: B2B SaaS Pivot)
-// =============================================================================
-
-// M2M: users within an organization workspace.
-type OrganizationUser struct {
-	OrgID    int64              `json:"org_id"`
-	UserID   int64              `json:"user_id"`
-	Role     string             `json:"role"`
-	JoinedAt pgtype.Timestamptz `json:"joined_at"`
-}
-
-// Organization invitations sent to developers.
-type OrganizationInvite struct {
-	ID                int64              `json:"id"`
-	OrgID             int64              `json:"org_id"`
-	InviterID         int64              `json:"inviter_id"`
-	TargetEmail       string             `json:"target_email"`
-	TargetGithubLogin pgtype.Text        `json:"target_github_login"`
-	Status            string             `json:"status"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
