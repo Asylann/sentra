@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/usena/sentra/api-gateway/internal/auth"
 	"github.com/usena/sentra/api-gateway/internal/db"
@@ -32,8 +32,8 @@ type githubRepo struct {
 	OwnerID  int64
 }
 
-// fetchGitHubRepos calls GET /user/installations/{id}/repositories using a user OAuth token.
-// Returns up to 100 repos (one page). The token must be a valid GitHub OAuth access token.
+// fetchGitHubRepos calls GET /user/installations/{id}/repositories using a user
+// OAuth token. Returns up to 100 repos (one page).
 func fetchGitHubRepos(token string, installationID int64) ([]githubRepo, error) {
 	url := fmt.Sprintf("https://api.github.com/user/installations/%d/repositories?per_page=100", installationID)
 	req, err := http.NewRequest("GET", url, nil)
@@ -82,10 +82,15 @@ func fetchGitHubRepos(token string, installationID int64) ([]githubRepo, error) 
 }
 
 // SyncInstallationRepos handles POST /api/v1/orgs/:id/repos/sync
-// Fetches repos accessible via the user's GitHub App installation, upserts them into
-// the repositories table, registers them in organization_repositories (is_active=false
-// by default so existing user choices are preserved), then returns the full repo list
-// with each repo's current is_linked status for this workspace.
+//
+// Fetches repos accessible via the user's GitHub App installation, upserts them
+// into the repositories table, ensures they appear in organization_repositories
+// (preserving the existing is_active choice), and records the current user in
+// organization_repository_syncs so they retain visibility even after unlinking.
+//
+// Returns all repos visible to the calling user for this workspace:
+//   - their own repos (synced by them — linked or unlinked)
+//   - any repos currently linked to the workspace by other members
 func (h *Handler) SyncInstallationRepos(c *gin.Context) {
 	userID := auth.GetUserID(c)
 	if userID == 0 {
@@ -105,13 +110,16 @@ func (h *Handler) SyncInstallationRepos(c *gin.Context) {
 		return
 	}
 
-	// If the user has a GitHub App installation and OAuth token, sync from GitHub API.
+	// Sync from GitHub API when the user has a valid installation + OAuth token.
 	if user.InstallationID.Valid && user.GithubAccessToken.Valid && user.GithubAccessToken.String != "" {
 		ghRepos, fetchErr := fetchGitHubRepos(user.GithubAccessToken.String, user.InstallationID.Int64)
-		if fetchErr == nil {
+		if fetchErr != nil {
+			log.Printf("SyncInstallationRepos: GitHub API fetch failed for user %d: %v", userID, fetchErr)
+			// Non-fatal: return whatever is already in the DB for this user.
+		} else {
 			for _, ghRepo := range ghRepos {
-				// Try to find the canonical Sentra org for this repo's owner.
-				ownerOrgID := orgID // fallback: use current workspace
+				// Resolve the canonical Sentra org for this repo's GitHub owner.
+				ownerOrgID := orgID
 				if found, lookupErr := h.Queries.FindOrgByGitHubID(c, ghRepo.OwnerID); lookupErr == nil {
 					ownerOrgID = found
 				}
@@ -123,24 +131,35 @@ func (h *Handler) SyncInstallationRepos(c *gin.Context) {
 					IsPrivate:      ghRepo.Private,
 				})
 				if upsertErr != nil {
+					log.Printf("SyncInstallationRepos: upsert failed for repo %s: %v", ghRepo.FullName, upsertErr)
 					continue
 				}
 
-				// Register this repo in the workspace. Record who synced it (first writer wins)
-				// so visibility filtering can distinguish "my repos" from "other members' repos".
+				// Register the repo in this workspace (default unlinked; preserve existing choice).
 				h.Pool.Exec(c, //nolint:errcheck
-					`INSERT INTO organization_repositories (org_id, repo_id, is_active, synced_by_user_id)
-					 VALUES ($1, $2, false, $3)
-					 ON CONFLICT (org_id, repo_id) DO UPDATE
-					 SET synced_by_user_id = COALESCE(organization_repositories.synced_by_user_id, EXCLUDED.synced_by_user_id)`,
-					orgID, repoID, userID,
+					`INSERT INTO organization_repositories (org_id, repo_id, is_active)
+					 VALUES ($1, $2, false)
+					 ON CONFLICT (org_id, repo_id) DO NOTHING`,
+					orgID, repoID,
 				)
+
+				// Record that THIS user synced this repo so they retain visibility
+				// even when is_active = false (i.e. after unlinking).
+				if err := h.Queries.RegisterRepoSync(c, db.RegisterRepoSyncParams{
+					OrgID:  orgID,
+					RepoID: repoID,
+					UserID: userID,
+				}); err != nil {
+					log.Printf("SyncInstallationRepos: RegisterRepoSync failed for repo %d user %d: %v", repoID, userID, err)
+				}
 			}
 		}
-		// GitHub fetch failures are non-fatal: we still return what's in the DB.
 	}
 
-	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, db.GetOrgReposWithLinkStatusParams{OrgID: orgID, SyncedByUserID: pgtype.Int8{Int64: userID, Valid: true}})
+	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, db.GetOrgReposWithLinkStatusParams{
+		OrgID:  orgID,
+		UserID: userID,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch repositories"})
 		return
@@ -152,7 +171,7 @@ func (h *Handler) SyncInstallationRepos(c *gin.Context) {
 }
 
 // GetOrgRepos handles GET /api/v1/orgs/:id/repos
-// Returns all repositories visible to the workspace with their is_linked status.
+// Returns all repos visible to the calling user (their own + workspace-linked).
 func (h *Handler) GetOrgRepos(c *gin.Context) {
 	userID := auth.GetUserID(c)
 	if userID == 0 {
@@ -166,7 +185,10 @@ func (h *Handler) GetOrgRepos(c *gin.Context) {
 		return
 	}
 
-	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, db.GetOrgReposWithLinkStatusParams{OrgID: orgID, SyncedByUserID: pgtype.Int8{Int64: userID, Valid: true}})
+	repos, err := h.Queries.GetOrgReposWithLinkStatus(c, db.GetOrgReposWithLinkStatusParams{
+		OrgID:  orgID,
+		UserID: userID,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch repositories"})
 		return
@@ -180,7 +202,16 @@ func (h *Handler) GetOrgRepos(c *gin.Context) {
 // LinkOrgRepo handles PUT /api/v1/orgs/:id/repos/:repo_id
 // Toggles whether a repository is linked (active) for this workspace.
 // Body: {"is_active": true|false}
+//
+// When a user explicitly links a repo through the UI, they are also registered
+// as a syncer so they retain visibility if they later unlink it.
 func (h *Handler) LinkOrgRepo(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	orgID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid org ID"})
@@ -209,5 +240,15 @@ func (h *Handler) LinkOrgRepo(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update repository link"})
 		return
 	}
+
+	// Claim ownership so this user keeps visibility after unlinking.
+	if err := h.Queries.RegisterRepoSync(c, db.RegisterRepoSyncParams{
+		OrgID:  orgID,
+		RepoID: repoID,
+		UserID: userID,
+	}); err != nil {
+		log.Printf("LinkOrgRepo: RegisterRepoSync failed for repo %d user %d: %v", repoID, userID, err)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"is_active": req.IsActive})
 }

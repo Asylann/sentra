@@ -505,15 +505,34 @@ VALUES ($1, $2, $3)
 ON CONFLICT (org_id, repo_id) DO UPDATE SET is_active = EXCLUDED.is_active, linked_at = NOW();
 
 -- name: GetOrgReposWithLinkStatus :many
--- Returns repos visible to a specific user in a workspace:
---   1. Repos this user personally synced (synced_by_user_id = $2) — their own GitHub repos
---   2. Repos linked to the workspace by anyone (is_active = true) — shared/visible to all members
--- This prevents an admin from seeing unlinked repos that a member synced but hasn't shared yet.
+-- Visibility contract:
+--   A user sees a repo in the workspace repo list if EITHER:
+--     (a) They personally synced it via the GitHub App installation endpoint
+--         (recorded in organization_repository_syncs). This covers their own
+--         repos regardless of whether they are currently linked or unlinked.
+--     (b) The repo is currently linked (is_active = true) to this workspace —
+--         linked repos are visible to every workspace member so anyone can
+--         manage them.
+--   This prevents an admin from seeing a member's private/unlinked repos while
+--   ensuring every user always has visibility into their own repos.
 SELECT r.id, r.github_id, r.name, r.full_name, r.is_private, r.is_active,
        r.avg_quality_score, r.total_prs_analyzed,
        orr.is_active AS is_linked
 FROM organization_repositories orr
 JOIN repositories r ON r.id = orr.repo_id
 WHERE orr.org_id = $1
-  AND (orr.synced_by_user_id = $2 OR orr.is_active = true)
+  AND (
+    EXISTS (
+      SELECT 1 FROM organization_repository_syncs s
+      WHERE s.org_id = orr.org_id AND s.repo_id = orr.repo_id AND s.user_id = $2
+    )
+    OR orr.is_active = true
+  )
 ORDER BY r.full_name ASC;
+
+-- name: RegisterRepoSync :exec
+-- Records that a user has synced a specific repo into a workspace via the
+-- GitHub App installation endpoint. Idempotent — safe to call on every sync.
+INSERT INTO organization_repository_syncs (org_id, repo_id, user_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (org_id, repo_id, user_id) DO NOTHING;

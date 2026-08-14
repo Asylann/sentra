@@ -291,6 +291,30 @@ CREATE INDEX idx_org_repos_org ON organization_repositories(org_id) WHERE is_act
 COMMENT ON TABLE organization_repositories IS
     'Workspace-to-repository mapping. Admins select which repos feed a workspace''s metrics.';
 
+-- -----------------------------------------------------------------------------
+-- organization_repository_syncs
+-- Tracks WHICH users have synced a given repo into a workspace via the GitHub
+-- App installation endpoint. A repo can be synced by multiple users (e.g. both
+-- the admin and a member). This is the authoritative source for "did this user
+-- choose to include this repo in their view?"
+--
+-- Visibility rule:
+--   A user sees a repo if they appear in this table for it (their own repos,
+--   whether linked or not) OR if the repo is currently linked (is_active=true
+--   in organization_repositories) so linked repos are visible to all workspace
+--   members.
+-- -----------------------------------------------------------------------------
+CREATE TABLE organization_repository_syncs (
+    org_id  BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    repo_id BIGINT NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (org_id, repo_id, user_id)
+);
+CREATE INDEX idx_org_repo_syncs_user ON organization_repository_syncs(org_id, user_id);
+
+COMMENT ON TABLE organization_repository_syncs IS
+    'Which users have synced (and therefore "own") a repo entry in a workspace. Many-to-many.';
+
 
 -- -----------------------------------------------------------------------------
 -- team_members

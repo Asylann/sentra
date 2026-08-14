@@ -1443,13 +1443,19 @@ SELECT r.id, r.github_id, r.name, r.full_name, r.is_private, r.is_active,
 FROM organization_repositories orr
 JOIN repositories r ON r.id = orr.repo_id
 WHERE orr.org_id = $1
-  AND (orr.synced_by_user_id = $2 OR orr.is_active = true)
+  AND (
+    EXISTS (
+      SELECT 1 FROM organization_repository_syncs s
+      WHERE s.org_id = orr.org_id AND s.repo_id = orr.repo_id AND s.user_id = $2
+    )
+    OR orr.is_active = true
+  )
 ORDER BY r.full_name ASC
 `
 
 type GetOrgReposWithLinkStatusParams struct {
-	OrgID          int64       `json:"org_id"`
-	SyncedByUserID pgtype.Int8 `json:"synced_by_user_id"`
+	OrgID  int64 `json:"org_id"`
+	UserID int64 `json:"user_id"`
 }
 
 type GetOrgReposWithLinkStatusRow struct {
@@ -1465,7 +1471,7 @@ type GetOrgReposWithLinkStatusRow struct {
 }
 
 func (q *Queries) GetOrgReposWithLinkStatus(ctx context.Context, arg GetOrgReposWithLinkStatusParams) ([]GetOrgReposWithLinkStatusRow, error) {
-	rows, err := q.db.Query(ctx, getOrgReposWithLinkStatus, arg.OrgID, arg.SyncedByUserID)
+	rows, err := q.db.Query(ctx, getOrgReposWithLinkStatus, arg.OrgID, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -1492,4 +1498,21 @@ func (q *Queries) GetOrgReposWithLinkStatus(ctx context.Context, arg GetOrgRepos
 		return nil, err
 	}
 	return items, nil
+}
+
+const registerRepoSync = `-- name: RegisterRepoSync :exec
+INSERT INTO organization_repository_syncs (org_id, repo_id, user_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (org_id, repo_id, user_id) DO NOTHING
+`
+
+type RegisterRepoSyncParams struct {
+	OrgID  int64 `json:"org_id"`
+	RepoID int64 `json:"repo_id"`
+	UserID int64 `json:"user_id"`
+}
+
+func (q *Queries) RegisterRepoSync(ctx context.Context, arg RegisterRepoSyncParams) error {
+	_, err := q.db.Exec(ctx, registerRepoSync, arg.OrgID, arg.RepoID, arg.UserID)
+	return err
 }
