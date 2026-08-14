@@ -115,7 +115,11 @@ func (h *Handler) SyncInstallationRepos(c *gin.Context) {
 		ghRepos, fetchErr := fetchGitHubRepos(user.GithubAccessToken.String, user.InstallationID.Int64)
 		if fetchErr != nil {
 			log.Printf("SyncInstallationRepos: GitHub API fetch failed for user %d: %v", userID, fetchErr)
-			// Non-fatal: return whatever is already in the DB for this user.
+			if strings.Contains(fetchErr.Error(), "401") {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "GitHub token expired. Please log in again."})
+				return
+			}
+			// Non-fatal for other errors: return whatever is already in the DB for this user.
 		} else {
 			for _, ghRepo := range ghRepos {
 				// Resolve the canonical Sentra org for this repo's GitHub owner.

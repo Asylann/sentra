@@ -68,8 +68,14 @@ export function AuthProvider({ children }) {
     if (tokenRef.current) {
       headers['Authorization'] = `Bearer ${tokenRef.current}`;
     }
-    return fetch(`${API_BASE}${path}`, { ...options, headers });
-  }, []);
+    const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    
+    if (response.status === 401) {
+      logout();
+    }
+    
+    return response;
+  }, [logout]);
 
   // Refresh user data (e.g., after installing the GitHub App)
   const refreshUser = useCallback(() => {
