@@ -115,10 +115,10 @@ func (h *Handler) HandleWebhook(c *gin.Context) {
 	// Ignore err if it can't unmarshal cleanly, default values will be 0 or ""
 	json.Unmarshal(payload, &tempPayload)
 
-	// Action filter: only "opened" and "synchronize" trigger a full review.
-	// Other PR actions (closed, reopened, edited, etc.) are acknowledged but skipped.
-	if tempPayload.Action != "opened" && tempPayload.Action != "synchronize" {
-		log.Printf("PR event action '%s' skipped (only opened/synchronize trigger review), delivery_id: %v", tempPayload.Action, deliveryID)
+	// Action filter: only "opened" triggers a full review.
+	// Other PR actions (closed, reopened, edited, synchronize, etc.) are acknowledged but skipped.
+	if tempPayload.Action != "opened" {
+		log.Printf("PR event action '%s' skipped (only 'opened' triggers review), delivery_id: %v", tempPayload.Action, deliveryID)
 		c.Status(http.StatusOK)
 		return
 	}

@@ -162,16 +162,16 @@ func (s *Service) ProcessWebhook(ctx context.Context, deliveryID, eventType, act
 	}
 
 	// NOTE: The handler pre-filters events so only pull_request with action
-	// "opened" or "synchronize" reaches ProcessWebhook. This condition is a
+	// "opened" reaches ProcessWebhook. This condition is a
 	// secondary guard to ensure correctness even if called from other paths.
-	if pullNumber > 0 && repoType.Valid && (action == "opened" || action == "synchronize") {
+	if pullNumber > 0 && repoType.Valid && action == "opened" {
 		// Check rate limit: 7 PR reviews per day per installation
 		var dailyCount int
 		query := `
 			SELECT COUNT(*) 
 			FROM webhook_payloads 
 			WHERE event_type = 'pull_request' 
-			  AND action IN ('opened', 'synchronize') 
+			  AND action = 'opened' 
 			  AND installation_id = $1 
 			  AND received_at >= CURRENT_DATE
 		`
